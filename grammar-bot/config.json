@@ -1,0 +1,25 @@
+{
+  "bot": {
+    "name": "Spelling Bee Bot",
+    "version": "1.0.0",
+    "description": "AI-powered spelling challenge bot migrated from Python"
+  },
+  "colors": {
+    "default": 3447003,
+    "success": 3066993,
+    "error": 15158332,
+    "warning": 15844367,
+    "info": 3447003
+  },
+  "game": {
+    "minWordLength": 4,
+    "maxWords": 20,
+    "timeLimit": 300,
+    "pointsPerWord": 10,
+    "bonusMultiplier": 1.5
+  },
+  "rateLimit": {
+    "commandsPerUser": 5,
+    "timeWindow": 60
+  }
+}
