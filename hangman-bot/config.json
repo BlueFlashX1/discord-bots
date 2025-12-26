@@ -1,25 +1,37 @@
 {
   "bot": {
-    "name": "Spelling Bee Bot",
+    "name": "Hangman Bot",
     "version": "1.0.0",
-    "description": "AI-powered spelling challenge bot migrated from Python"
+    "description": "Multiplayer word guessing game"
   },
   "colors": {
     "default": 3447003,
     "success": 3066993,
     "error": 15158332,
     "warning": 15844367,
-    "info": 3447003
+    "info": 3447003,
+    "game": 9442302
   },
   "game": {
-    "minWordLength": 4,
-    "maxWords": 20,
-    "timeLimit": 300,
-    "pointsPerWord": 10,
-    "bonusMultiplier": 1.5
+    "minPlayers": 2,
+    "maxPlayers": 4,
+    "maxMistakes": 6,
+    "joinTimeout": 60000,
+    "pointsPerWin": 100,
+    "pointsPerLetter": 10
   },
-  "rateLimit": {
-    "commandsPerUser": 5,
-    "timeWindow": 60
+  "shop": {
+    "items": [
+      {"id": "fire_prefix", "name": "🔥 Fire Prefix", "cost": 500, "type": "prefix"},
+      {"id": "star_prefix", "name": "⭐ Star Prefix", "cost": 500, "type": "prefix"},
+      {"id": "crown_prefix", "name": "👑 Crown Prefix", "cost": 1000, "type": "prefix"},
+      {"id": "dark_theme", "name": "🌑 Dark Theme", "cost": 1000, "type": "theme"},
+      {"id": "gold_theme", "name": "✨ Gold Theme", "cost": 1500, "type": "theme"}
+    ]
+  },
+  "leaderboard": {
+    "resetDay": 1,
+    "resetHour": 0,
+    "topCount": 10
   }
 }
