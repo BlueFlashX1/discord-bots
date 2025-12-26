@@ -13,9 +13,23 @@ const client = new Client({
   ],
 });
 
-// Connect to database
-connectDatabase().then(dbType => {
+// Connect to database and initialize systems
+connectDatabase().then(async (dbType) => {
   console.log(`📊 Database: ${dbType === 'mongodb' ? 'MongoDB' : 'JSON files'}`);
+
+  // Initialize shop system
+  const { getDatabase } = require('./database/db');
+  const { ShopItem, Player } = getDatabase();
+  const ShopSystem = require('./utils/shopSystem');
+  const WeeklyReset = require('./utils/weeklyReset');
+
+  const shopSystem = new ShopSystem(ShopItem, Player);
+  await shopSystem.initializeShop();
+
+  // Start weekly reset scheduler
+  const weeklyReset = new WeeklyReset(Player);
+  weeklyReset.start();
+
 }).catch(error => {
   console.error('Database connection error:', error);
 });

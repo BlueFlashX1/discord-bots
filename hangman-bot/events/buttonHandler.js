@@ -10,6 +10,13 @@ module.exports = {
     if (!interaction.isButton()) return;
 
     try {
+      // Handle Hangman buttons
+      if (interaction.customId.startsWith('hangman_')) {
+        await handleHangmanButton(interaction);
+        return;
+      }
+
+      // Handle Spelling Bee buttons
       // Get active session
       const session = isUsingJSON()
         ? await JSONSession.getActiveSession(interaction.channelId)
@@ -61,6 +68,76 @@ module.exports = {
     }
   },
 };
+
+/**
+ * Handle Hangman game buttons
+ */
+async function handleHangmanButton(interaction) {
+  const GameManager = require('../utils/gameManager');
+  const { getDatabase } = require('../database/db');
+  const { Game, Player } = getDatabase();
+  const gameManager = new GameManager(Game, Player);
+
+  const channelId = interaction.channel.id;
+  const userId = interaction.user.id;
+  const username = interaction.user.username;
+
+  try {
+    if (interaction.customId === 'hangman_join') {
+      // Join game
+      await interaction.deferReply({ ephemeral: true });
+
+      const { game, playerCount } = await gameManager.joinGame(channelId, userId, username);
+
+      await interaction.editReply({
+        content: `✅ You joined the game! (${playerCount}/${config.game.maxPlayers} players)`,
+        ephemeral: true
+      });
+
+      // Update the waiting room message
+      const waitingEmbed = gameManager.createWaitingEmbed(game);
+
+      if (interaction.message) {
+        await interaction.message.edit({ embeds: [waitingEmbed] });
+      }
+
+    } else if (interaction.customId === 'hangman_start') {
+      // Start game
+      await interaction.deferReply();
+
+      const game = await gameManager.startGame(channelId, userId);
+
+      await interaction.editReply({
+        content: '🎮 Game started! Use `/hangman guess <letter>` to play!'
+      });
+
+      // Update the message to show game board
+      const gameEmbed = gameManager.createGameEmbed(game, '🎮 Hangman Game Started!');
+
+      if (interaction.message) {
+        await interaction.message.edit({
+          embeds: [gameEmbed],
+          components: [] // Remove buttons
+        });
+      }
+    }
+
+  } catch (error) {
+    console.error('Error handling Hangman button:', error);
+
+    if (interaction.deferred) {
+      await interaction.editReply({
+        content: `❌ ${error.message}`,
+        ephemeral: true
+      });
+    } else {
+      await interaction.reply({
+        content: `❌ ${error.message}`,
+        ephemeral: true
+      });
+    }
+  }
+}
 
 /**
  * Handle hint button - show a random unfound word
