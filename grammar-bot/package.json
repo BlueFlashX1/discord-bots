@@ -1,0 +1,32 @@
+{
+  "name": "grammar-bot",
+  "version": "1.0.0",
+  "description": "AI-powered grammar correction Discord bot - Node.js migration from Python",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "deploy": "node deploy-commands.js",
+    "dev": "nodemon index.js",
+    "migrate:preview": "node scripts/migrate-from-python.js --dry-run",
+    "migrate:run": "node scripts/migrate-from-python.js --yes",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "grammar",
+    "openai",
+    "ai"
+  ],
+  "author": "Matthew Thompson",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "discobase": "^1.0.7",
+    "discord.js": "^14.25.1",
+    "dotenv": "^17.2.3",
+    "mongodb": "^7.0.0",
+    "mongoose": "^9.1.4",
+    "openai": "^4.104.0"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "reddit-filter-bot",
+  "version": "1.0.0",
+  "description": "Discord bot that monitors Reddit subreddits and posts filtered content based on keywords",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "reddit",
+    "filter",
+    "monitor"
+  ],
+  "author": "Matthew Thompson",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "discobase": "^1.0.7",
+    "discord.js": "^14.25.1",
+    "dotenv": "^17.2.3",
+    "snoowrap": "^1.23.0",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

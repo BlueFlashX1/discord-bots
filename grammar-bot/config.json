@@ -1,8 +1,8 @@
 {
   "bot": {
-    "name": "Spelling Bee Bot",
+    "name": "Grammar Bot",
     "version": "1.0.0",
-    "description": "AI-powered spelling challenge bot migrated from Python"
+    "description": "AI-powered grammar correction Discord bot"
   },
   "colors": {
     "default": 3447003,
@@ -11,15 +11,127 @@
     "warning": 15844367,
     "info": 3447003
   },
-  "game": {
-    "minWordLength": 4,
-    "maxWords": 20,
-    "timeLimit": 300,
-    "pointsPerWord": 10,
-    "bonusMultiplier": 1.5
+  "shop": {
+    "items": [
+      {
+        "id": "grammar_guru",
+        "name": "Grammar Guru",
+        "cost": 500,
+        "type": "title",
+        "description": "Display 'Grammar Guru' title"
+      },
+      {
+        "id": "professor_title",
+        "name": "Professor Title",
+        "cost": 1000,
+        "type": "title",
+        "description": "Display 'Professor' title"
+      },
+      {
+        "id": "custom_theme",
+        "name": "Custom Theme",
+        "cost": 750,
+        "type": "theme",
+        "description": "Personalized color theme"
+      },
+      {
+        "id": "gold_badge",
+        "name": "Gold Badge",
+        "cost": 1500,
+        "type": "badge",
+        "description": "Prestige cosmetic badge"
+      },
+      {
+        "id": "platinum_badge",
+        "name": "Platinum Badge",
+        "cost": 2000,
+        "type": "badge",
+        "description": "Ultimate cosmetic badge"
+      },
+      {
+        "id": "xp_boost",
+        "name": "XP Boost",
+        "cost": 300,
+        "type": "boost",
+        "description": "2x XP for 24 hours"
+      },
+      {
+        "id": "hp_shield",
+        "name": "HP Shield",
+        "cost": 400,
+        "type": "boost",
+        "description": "Prevent HP loss for 1 hour"
+      }
+    ]
+  },
+  "skills": {
+    "items": [
+      {
+        "id": "grammar_strike",
+        "name": "Grammar Strike",
+        "damage": 10,
+        "cost": 5,
+        "type": "attack",
+        "description": "Basic grammar attack - deals 10 damage"
+      },
+      {
+        "id": "spell_check",
+        "name": "Spell Check",
+        "damage": 15,
+        "cost": 8,
+        "type": "attack",
+        "description": "Spelling-focused attack - deals 15 damage"
+      },
+      {
+        "id": "punctuation_punch",
+        "name": "Punctuation Punch",
+        "damage": 12,
+        "cost": 6,
+        "type": "attack",
+        "description": "Punctuation-based attack - deals 12 damage"
+      },
+      {
+        "id": "capitalization_crush",
+        "name": "Capitalization Crush",
+        "damage": 14,
+        "cost": 7,
+        "type": "attack",
+        "description": "Capitalization attack - deals 14 damage"
+      },
+      {
+        "id": "grammar_blast",
+        "name": "Grammar Blast",
+        "damage": 20,
+        "cost": 12,
+        "type": "attack",
+        "description": "Powerful grammar attack - deals 20 damage"
+      },
+      {
+        "id": "perfection_perfect",
+        "name": "Perfection Perfect",
+        "damage": 25,
+        "cost": 15,
+        "type": "attack",
+        "description": "Ultimate attack - deals 25 damage"
+      }
+    ]
   },
   "rateLimit": {
     "commandsPerUser": 5,
     "timeWindow": 60
+  },
+  "channels": {
+    "default": {
+      "correctionsChannelId": null,
+      "primaryChannelIds": []
+    },
+    "servers": {
+      "1311948619091284009": {
+        "correctionsChannelId": "1461876069719216219",
+        "primaryChannelIds": [
+          "1311948619678613568"
+        ]
+      }
+    }
   }
 }

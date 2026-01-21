@@ -1,0 +1,34 @@
+{
+  "name": "coding-practice-bot",
+  "version": "1.0.0",
+  "description": "Discord bot for Python coding practice with problems from multiple sources",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "deploy": "node deploy-commands.js",
+    "scrape": "node scripts/scrape-problems.js"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "coding",
+    "practice",
+    "python",
+    "leetcode",
+    "codewars"
+  ],
+  "author": "Matthew Thompson",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "discord.js": "^14.25.1",
+    "dotenv": "^17.2.3",
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0-rc.12",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "todoist-bot",
+  "version": "1.0.0",
+  "description": "Discord bot for Todoist task management with real-time sync",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "deploy": "node deploy-commands.js",
+    "dev": "nodemon index.js",
+    "lint": "eslint . --ext .js",
+    "lint:fix": "eslint . --ext .js --fix"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "todoist",
+    "task-management"
+  ],
+  "author": "Matthew Thompson",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "discord.js": "^14.25.1",
+    "dotenv": "^17.2.3",
+    "@doist/todoist-api-typescript": "^5.2.1",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "eslint": "^8.57.0"
+  }
+}

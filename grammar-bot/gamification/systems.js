@@ -68,29 +68,73 @@ class ShopSystem {
    * Get shop items from config
    */
   static getShopItems() {
-    return config.shop.items || [
-      { id: 'scholar_title', name: '📚 Scholar Title', cost: 500, type: 'title', description: 'Display "Scholar" title' },
-      { id: 'grammarian_title', name: '✍️ Grammarian Title', cost: 1000, type: 'title', description: 'Display "Grammarian" title' },
-      { id: 'perfectionist_title', name: '🎯 Perfectionist Title', cost: 2000, type: 'title', description: 'Display "Perfectionist" title' },
-      { id: 'dark_theme', name: '🌑 Dark Theme', cost: 750, type: 'theme', description: 'Dark mode embeds' },
-      { id: 'gold_theme', name: '✨ Gold Theme', cost: 1500, type: 'theme', description: 'Gold accent embeds' },
-      { id: 'star_badge', name: '⭐ Star Badge', cost: 1000, type: 'badge', description: 'Star badge on stats' },
-      { id: 'crown_badge', name: '👑 Crown Badge', cost: 2500, type: 'badge', description: 'Crown badge on stats' }
-    ];
+    return (
+      config.shop.items || [
+        {
+          id: 'scholar_title',
+          name: 'Scholar Title',
+          cost: 500,
+          type: 'title',
+          description: 'Display "Scholar" title',
+        },
+        {
+          id: 'grammarian_title',
+          name: 'Grammarian Title',
+          cost: 1000,
+          type: 'title',
+          description: 'Display "Grammarian" title',
+        },
+        {
+          id: 'perfectionist_title',
+          name: 'Perfectionist Title',
+          cost: 2000,
+          type: 'title',
+          description: 'Display "Perfectionist" title',
+        },
+        {
+          id: 'dark_theme',
+          name: 'Dark Theme',
+          cost: 750,
+          type: 'theme',
+          description: 'Dark mode embeds',
+        },
+        {
+          id: 'gold_theme',
+          name: 'Gold Theme',
+          cost: 1500,
+          type: 'theme',
+          description: 'Gold accent embeds',
+        },
+        {
+          id: 'star_badge',
+          name: 'Star Badge',
+          cost: 1000,
+          type: 'badge',
+          description: 'Star badge on stats',
+        },
+        {
+          id: 'crown_badge',
+          name: 'Crown Badge',
+          cost: 2500,
+          type: 'badge',
+          description: 'Crown badge on stats',
+        },
+      ]
+    );
   }
 
   /**
    * Get items by type
    */
   static getItemsByType(type) {
-    return this.getShopItems().filter(item => item.type === type);
+    return this.getShopItems().filter((item) => item.type === type);
   }
 
   /**
    * Find item by ID
    */
   static findItem(itemId) {
-    return this.getShopItems().find(item => item.id === itemId);
+    return this.getShopItems().find((item) => item.id === itemId);
   }
 
   /**
@@ -112,40 +156,37 @@ class ShopSystem {
   static createShopEmbed(userPoints) {
     const items = this.getShopItems();
     const embed = new EmbedBuilder()
-      .setTitle('🛍️ Grammar Shop')
+      .setTitle('Grammar Shop')
       .setDescription('Purchase cosmetics with your points!')
       .setColor(config.colors.info);
 
     embed.addFields({
-      name: '💰 Your Points',
+      name: 'Your Points',
       value: `${userPoints} points`,
-      inline: false
+      inline: false,
     });
 
     // Group by type
     const types = ['title', 'theme', 'badge'];
-    types.forEach(type => {
-      const typeItems = items.filter(i => i.type === type);
+    types.forEach((type) => {
+      const typeItems = items.filter((i) => i.type === type);
       if (typeItems.length > 0) {
-        const itemList = typeItems.map(item => {
-          const affordable = userPoints >= item.cost ? '✅' : '❌';
-          return `${affordable} **${item.name}** - ${item.cost} pts\n_${item.description}_`;
-        }).join('\n\n');
+        const itemList = typeItems
+          .map((item) => {
+            const affordable = userPoints >= item.cost ? '[Available]' : '[Not enough points]';
+            return `${affordable} **${item.name}** - ${item.cost} pts\n_${item.description}_`;
+          })
+          .join('\n\n');
 
         embed.addFields({
-          name: `${this.getTypeEmoji(type)} ${this.capitalize(type)}s`,
+          name: `${this.capitalize(type)}s`,
           value: itemList,
-          inline: false
+          inline: false,
         });
       }
     });
 
     return embed;
-  }
-
-  static getTypeEmoji(type) {
-    const emojis = { title: '🏷️', theme: '🎨', badge: '🏅' };
-    return emojis[type] || '📦';
   }
 
   static capitalize(str) {
@@ -164,29 +205,94 @@ class AchievementsSystem {
   static getAllAchievements() {
     return [
       // Streak achievements
-      { id: 'streak_7', name: '🔥 Week Streak', description: '7-day clean message streak', requirement: { type: 'streak', value: 7 } },
-      { id: 'streak_30', name: '🔥🔥 Month Streak', description: '30-day clean message streak', requirement: { type: 'streak', value: 30 } },
-      { id: 'streak_100', name: '🔥🔥🔥 Century Streak', description: '100-day clean message streak', requirement: { type: 'streak', value: 100 } },
+      {
+        id: 'streak_7',
+        name: 'Week Streak',
+        description: '7-day clean message streak',
+        requirement: { type: 'streak', value: 7 },
+      },
+      {
+        id: 'streak_30',
+        name: 'Month Streak',
+        description: '30-day clean message streak',
+        requirement: { type: 'streak', value: 30 },
+      },
+      {
+        id: 'streak_100',
+        name: 'Century Streak',
+        description: '100-day clean message streak',
+        requirement: { type: 'streak', value: 100 },
+      },
 
       // Message achievements
-      { id: 'messages_100', name: '✉️ Centurion', description: '100 messages checked', requirement: { type: 'messages', value: 100 } },
-      { id: 'messages_1000', name: '✉️✉️ Thousand', description: '1000 messages checked', requirement: { type: 'messages', value: 1000 } },
+      {
+        id: 'messages_100',
+        name: 'Centurion',
+        description: '100 messages checked',
+        requirement: { type: 'messages', value: 100 },
+      },
+      {
+        id: 'messages_1000',
+        name: 'Thousand',
+        description: '1000 messages checked',
+        requirement: { type: 'messages', value: 1000 },
+      },
 
       // Accuracy achievements
-      { id: 'accuracy_90', name: '🎯 Sharp Shooter', description: '90%+ accuracy', requirement: { type: 'accuracy', value: 90 } },
-      { id: 'accuracy_95', name: '🎯🎯 Perfectionist', description: '95%+ accuracy', requirement: { type: 'accuracy', value: 95 } },
+      {
+        id: 'accuracy_90',
+        name: 'Sharp Shooter',
+        description: '90%+ accuracy',
+        requirement: { type: 'accuracy', value: 90 },
+      },
+      {
+        id: 'accuracy_95',
+        name: 'Perfectionist',
+        description: '95%+ accuracy',
+        requirement: { type: 'accuracy', value: 95 },
+      },
 
       // Level achievements
-      { id: 'level_10', name: '⬆️ Level 10', description: 'Reach level 10', requirement: { type: 'level', value: 10 } },
-      { id: 'level_25', name: '⬆️⬆️ Level 25', description: 'Reach level 25', requirement: { type: 'level', value: 25 } },
+      {
+        id: 'level_10',
+        name: 'Level 10',
+        description: 'Reach level 10',
+        requirement: { type: 'level', value: 10 },
+      },
+      {
+        id: 'level_25',
+        name: 'Level 25',
+        description: 'Reach level 25',
+        requirement: { type: 'level', value: 25 },
+      },
 
       // PvP achievements
-      { id: 'pvp_10', name: '⚔️ Duelist', description: 'Win 10 PvP battles', requirement: { type: 'pvp_wins', value: 10 } },
-      { id: 'pvp_50', name: '⚔️⚔️ Champion', description: 'Win 50 PvP battles', requirement: { type: 'pvp_wins', value: 50 } },
+      {
+        id: 'pvp_10',
+        name: 'Duelist',
+        description: 'Win 10 PvP battles',
+        requirement: { type: 'pvp_wins', value: 10 },
+      },
+      {
+        id: 'pvp_50',
+        name: 'Champion',
+        description: 'Win 50 PvP battles',
+        requirement: { type: 'pvp_wins', value: 50 },
+      },
 
       // Special achievements
-      { id: 'no_errors_50', name: '✨ Flawless 50', description: '50 consecutive clean messages', requirement: { type: 'consecutive_clean', value: 50 } },
-      { id: 'shop_master', name: '🛍️ Shop Master', description: 'Purchase 5 shop items', requirement: { type: 'shop_items', value: 5 } }
+      {
+        id: 'no_errors_50',
+        name: 'Flawless 50',
+        description: '50 consecutive clean messages',
+        requirement: { type: 'consecutive_clean', value: 50 },
+      },
+      {
+        id: 'shop_master',
+        name: 'Shop Master',
+        description: 'Purchase 5 shop items',
+        requirement: { type: 'shop_items', value: 5 },
+      },
     ];
   }
 
@@ -199,7 +305,11 @@ class AchievementsSystem {
 
     for (const achievement of allAchievements) {
       // Skip if already unlocked
-      if (user.achievements.some(a => a.achievementId === achievement.id)) {
+      const achievements = user.achievements || [];
+      if (achievements.some((a) => {
+        const achId = typeof a === 'string' ? a : a.achievementId;
+        return achId === achievement.id;
+      })) {
         continue;
       }
 
@@ -233,9 +343,8 @@ class AchievementsSystem {
         return user.totalMessages >= requirement.value;
 
       case 'accuracy':
-        const accuracy = user.totalMessages > 0
-          ? (user.cleanMessages / user.totalMessages) * 100
-          : 0;
+        const accuracy =
+          user.totalMessages > 0 ? (user.cleanMessages / user.totalMessages) * 100 : 0;
         return accuracy >= requirement.value;
 
       case 'level':
@@ -245,7 +354,8 @@ class AchievementsSystem {
         return user.pvpWins >= requirement.value;
 
       case 'shop_items':
-        return user.shopItems.length >= requirement.value;
+        const shopItems = user.shopItems || user.inventory || [];
+        return shopItems.length >= requirement.value;
 
       case 'consecutive_clean':
         // This would need additional tracking
@@ -261,13 +371,13 @@ class AchievementsSystem {
    */
   static createUnlockEmbed(achievement) {
     return new EmbedBuilder()
-      .setTitle('🏆 Achievement Unlocked!')
+      .setTitle('Achievement Unlocked!')
       .setDescription(`**${achievement.name}**\n${achievement.description}`)
       .setColor(config.colors.success)
       .addFields({
-        name: '🎁 Bonus',
+        name: 'Bonus',
         value: '+100 points, +50 XP',
-        inline: false
+        inline: false,
       });
   }
 }
@@ -287,16 +397,16 @@ class PvPSystem {
         userId: challenger.userId,
         username: challenger.username,
         level: challenger.level,
-        accuracy: parseFloat(challenger.accuracy)
+        accuracy: parseFloat(challenger.accuracy),
       },
       opponent: {
         userId: opponent.userId,
         username: opponent.username,
         level: opponent.level,
-        accuracy: parseFloat(opponent.accuracy)
+        accuracy: parseFloat(opponent.accuracy),
       },
       status: 'pending',
-      createdAt: new Date()
+      createdAt: new Date(),
     };
   }
 
@@ -312,7 +422,13 @@ class PvPSystem {
   /**
    * Complete battle with results
    */
-  static async completeBattle(battle, challengerText, opponentText, challengerResult, opponentResult) {
+  static async completeBattle(
+    battle,
+    challengerText,
+    opponentText,
+    challengerResult,
+    opponentResult
+  ) {
     // Calculate scores
     const challengerScore = this.calculateBattleScore(
       challengerResult.qualityScore,
@@ -342,7 +458,7 @@ class PvPSystem {
       challengerScore,
       opponentScore,
       result,
-      completedAt: new Date()
+      completedAt: new Date(),
     };
   }
 
@@ -358,38 +474,81 @@ class PvPSystem {
   }
 
   /**
+   * Resolve battle and update user records
+   */
+  static async resolveBattle(challengerUser, opponentUser, challengerScore, opponentScore) {
+    // Determine winner
+    let challengerResult, opponentResult;
+
+    if (challengerScore > opponentScore) {
+      challengerResult = 'win';
+      opponentResult = 'loss';
+    } else if (opponentScore > challengerScore) {
+      challengerResult = 'loss';
+      opponentResult = 'win';
+    } else {
+      challengerResult = 'draw';
+      opponentResult = 'draw';
+    }
+
+    // Record results for both users
+    await challengerUser.recordPvpResult(challengerResult);
+    await opponentUser.recordPvpResult(opponentResult);
+
+    // Apply HP damage to loser (if not a draw)
+    if (challengerResult === 'loss') {
+      challengerUser.hp = Math.max(0, challengerUser.hp - 10);
+      await challengerUser.save();
+    } else if (opponentResult === 'loss') {
+      opponentUser.hp = Math.max(0, opponentUser.hp - 10);
+      await opponentUser.save();
+    }
+
+    return {
+      challengerScore,
+      opponentScore,
+      result:
+        challengerResult === 'win'
+          ? 'challenger_wins'
+          : opponentResult === 'win'
+          ? 'opponent_wins'
+          : 'draw',
+      challengerResult,
+      opponentResult,
+    };
+  }
+
+  /**
    * Create battle result embed
    */
   static createBattleResultEmbed(battle) {
-    const embed = new EmbedBuilder()
-      .setTitle('⚔️ PvP Battle Results')
-      .setColor(config.colors.info);
+    const embed = new EmbedBuilder().setTitle('PvP Battle Results').setColor(config.colors.info);
 
     embed.addFields({
       name: `${battle.challenger.username} (Level ${battle.challenger.level})`,
       value: `Score: ${battle.challengerScore}`,
-      inline: true
+      inline: true,
     });
 
     embed.addFields({
       name: `${battle.opponent.username} (Level ${battle.opponent.level})`,
       value: `Score: ${battle.opponentScore}`,
-      inline: true
+      inline: true,
     });
 
     let resultText;
     if (battle.result === 'challenger_wins') {
-      resultText = `🏆 **${battle.challenger.username} wins!**`;
+      resultText = `**${battle.challenger.username} wins!**`;
     } else if (battle.result === 'opponent_wins') {
-      resultText = `🏆 **${battle.opponent.username} wins!**`;
+      resultText = `**${battle.opponent.username} wins!**`;
     } else {
-      resultText = '🤝 **It\'s a draw!**';
+      resultText = "**It's a draw!**";
     }
 
     embed.addFields({
       name: 'Result',
       value: resultText,
-      inline: false
+      inline: false,
     });
 
     return embed;
@@ -400,9 +559,79 @@ class PvPSystem {
 // EXPORTS
 // ============================================================================
 
+// ============================================================================
+// SKILLS SYSTEM
+// ============================================================================
+
+class SkillsSystem {
+  /**
+   * Get available skills from config
+   */
+  static getSkills() {
+    return config.skills?.items || [];
+  }
+
+  /**
+   * Find skill by ID
+   */
+  static findSkill(skillId) {
+    return this.getSkills().find((skill) => skill.id === skillId);
+  }
+
+  /**
+   * Get skills by type
+   */
+  static getSkillsByType(type) {
+    return this.getSkills().filter((skill) => skill.type === type);
+  }
+
+  /**
+   * Check if user can use skill (has enough points)
+   */
+  static canUseSkill(user, skillId) {
+    const skill = this.findSkill(skillId);
+    if (!skill) return false;
+    return user.points >= skill.cost;
+  }
+
+  /**
+   * Execute skill attack
+   */
+  static async executeAttack(attacker, target, skillId) {
+    const skill = this.findSkill(skillId);
+    if (!skill) {
+      throw new Error('Skill not found');
+    }
+
+    if (!this.canUseSkill(attacker, skillId)) {
+      throw new Error(`Insufficient points! Need ${skill.cost} points to use ${skill.name}`);
+    }
+
+    // Deduct skill cost
+    attacker.points -= skill.cost;
+    attacker.updatedAt = new Date();
+    await attacker.save();
+
+    // Apply damage to target
+    const damage = skill.damage;
+    target.hp = Math.max(0, target.hp - damage);
+    target.updatedAt = new Date();
+    await target.save();
+
+    return {
+      skill,
+      damage,
+      attackerPoints: attacker.points,
+      targetHp: target.hp,
+      targetDefeated: target.hp <= 0,
+    };
+  }
+}
+
 module.exports = {
   PointsSystem,
   ShopSystem,
   AchievementsSystem,
-  PvPSystem
+  PvPSystem,
+  SkillsSystem,
 };
