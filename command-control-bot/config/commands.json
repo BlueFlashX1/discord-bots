@@ -1,0 +1,108 @@
+{
+  "commands": [
+    {
+      "id": "ulquiorra-rojo",
+      "label": "Ulquiorra Lanza",
+      "command": "rojo serve",
+      "directory": "~/Documents/DEVELOPMENT/gaming/roblox-dev/ulquiorra-lanza-recreation",
+      "description": "Start Rojo sync for Ulquiorra Lanza project",
+      "category": "Roblox VFX"
+    },
+    {
+      "id": "senbonzakura-rojo",
+      "label": "Senbonzakura",
+      "command": "rojo serve",
+      "directory": "~/Documents/DEVELOPMENT/gaming/roblox-dev/senbonzakura-recreation",
+      "description": "Start Rojo sync for Senbonzakura project",
+      "category": "Roblox VFX"
+    },
+    {
+      "id": "amaterasu-rojo",
+      "label": "Amaterasu",
+      "command": "rojo serve",
+      "directory": "~/Documents/DEVELOPMENT/gaming/roblox-dev/amaterasu-recreation",
+      "description": "Start Rojo sync for Amaterasu project",
+      "category": "Roblox VFX"
+    },
+    {
+      "id": "planetary-devastation-rojo",
+      "label": "Planetary Devastation",
+      "command": "rojo serve",
+      "directory": "~/Documents/DEVELOPMENT/gaming/roblox-dev/planetary-devastation-recreation",
+      "description": "Start Rojo sync for Planetary Devastation project",
+      "category": "Roblox VFX"
+    },
+    {
+      "id": "tengai-shinsei-rojo",
+      "label": "Madara Tengai Shinsei",
+      "command": "rojo serve",
+      "directory": "~/Documents/DEVELOPMENT/gaming/roblox-dev/madara-tengai-shinsei",
+      "description": "Start Rojo sync for Madara Tengai Shinsei project",
+      "category": "Roblox VFX"
+    },
+    {
+      "id": "mountain-slash-rojo",
+      "label": "Madara Mountain Slash",
+      "command": "rojo serve",
+      "directory": "~/Documents/DEVELOPMENT/gaming/roblox-dev/madara-mountain-slash",
+      "description": "Start Rojo sync for Madara Mountain Slash project",
+      "category": "Roblox VFX"
+    },
+    {
+      "id": "sasuke-pd-rojo",
+      "label": "Sasuke PD",
+      "command": "rojo serve",
+      "directory": "~/Documents/DEVELOPMENT/gaming/roblox-dev/sasuke-uchiha-PD-recreation",
+      "description": "Start Rojo sync for Sasuke Planetary Devastation project",
+      "category": "Roblox VFX"
+    },
+    {
+      "id": "avatar-animation-rojo",
+      "label": "Avatar Animation",
+      "command": "rojo serve",
+      "directory": "~/Documents/DEVELOPMENT/gaming/roblox-dev/avatar-animation-practice",
+      "description": "Start Rojo sync for Avatar Animation Practice project",
+      "category": "Roblox VFX"
+    },
+    {
+      "id": "reddit-bot",
+      "label": "Reddit Filter Bot",
+      "command": "node index.js",
+      "directory": "~/Documents/DEVELOPMENT/discord/bots/reddit-filter-bot",
+      "description": "Start Reddit filter bot for monitoring subreddits",
+      "category": "Discord Bots"
+    },
+    {
+      "id": "grammar-bot",
+      "label": "Grammar Bot",
+      "command": "node index.js",
+      "directory": "~/Documents/DEVELOPMENT/discord/bots/grammar-bot",
+      "description": "Start AI-powered grammar correction bot",
+      "category": "Discord Bots"
+    },
+    {
+      "id": "hangman-bot",
+      "label": "Hangman Bot",
+      "command": "node index.js",
+      "directory": "~/Documents/DEVELOPMENT/discord/bots/hangman-bot",
+      "description": "Start multiplayer Hangman game bot",
+      "category": "Discord Bots"
+    },
+    {
+      "id": "todoist-bot",
+      "label": "Todoist Bot",
+      "command": "node index.js",
+      "directory": "~/Documents/DEVELOPMENT/discord/bots/todoist bot",
+      "description": "Start Todoist task management bot",
+      "category": "Discord Bots"
+    },
+    {
+      "id": "monitorss",
+      "label": "MonitoRSS",
+      "command": "docker compose up -d && echo 'MonitoRSS services started. Web UI at http://localhost:8000'",
+      "directory": "~/Documents/DEVELOPMENT/discord/bots/news-bots/MonitoRSS",
+      "description": "Start MonitoRSS Docker services for RSS feed monitoring",
+      "category": "Discord Bots"
+    }
+  ]
+}

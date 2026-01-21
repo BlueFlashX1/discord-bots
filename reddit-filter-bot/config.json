@@ -1,0 +1,23 @@
+{
+  "subreddits": {
+    "Python": {
+      "keywords": [
+        "tutorial",
+        "how to",
+        "best practice"
+      ],
+      "channel_id": "1462980201360396448",
+      "min_score": 0,
+      "enabled": true
+    },
+    "AmItheAsshole": {
+      "keywords": [],
+      "channel_id": "1462980201360396448",
+      "min_score": 0,
+      "enabled": false
+    }
+  },
+  "check_interval": 300,
+  "default_channel_id": "1462980201360396448",
+  "post_limit": 25
+}

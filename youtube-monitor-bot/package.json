@@ -1,0 +1,30 @@
+{
+  "name": "youtube-monitor-bot",
+  "version": "1.0.0",
+  "description": "Discord bot that monitors YouTube channels and posts new videos",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "deploy": "node deploy-commands.js"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "youtube",
+    "monitor",
+    "videos"
+  ],
+  "author": "Matthew Thompson",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "discord.js": "^14.25.1",
+    "dotenv": "^17.2.3",
+    "axios": "^1.6.0",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

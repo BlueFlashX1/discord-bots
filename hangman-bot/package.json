@@ -11,11 +11,18 @@
     "migrate:run": "node scripts/migrate-from-python.js --yes",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["discord", "bot", "hangman", "multiplayer", "game"],
+  "keywords": [
+    "discord",
+    "bot",
+    "hangman",
+    "multiplayer",
+    "game"
+  ],
   "author": "Matthew Thompson",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "discobase": "^1.0.7",
     "discord.js": "^14.25.1",
     "dotenv": "^17.2.3",
     "mongoose": "^9.0.2",

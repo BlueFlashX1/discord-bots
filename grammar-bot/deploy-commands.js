@@ -5,7 +5,7 @@ const path = require('path');
 
 const commands = [];
 const commandsPath = path.join(__dirname, 'commands');
-const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+const commandFiles = fs.readdirSync(commandsPath).filter((file) => file.endsWith('.js'));
 
 // Load all command data
 for (const file of commandFiles) {
@@ -14,9 +14,9 @@ for (const file of commandFiles) {
 
   if ('data' in command && 'execute' in command) {
     commands.push(command.data.toJSON());
-    console.log(`✅ Loaded command: ${command.data.name}`);
+    console.log(`Loaded command: ${command.data.name}`);
   } else {
-    console.warn(`⚠️ Command at ${filePath} is missing required "data" or "execute" property`);
+    console.warn(`Command at ${filePath} is missing required "data" or "execute" property`);
   }
 }
 
@@ -26,29 +26,29 @@ const rest = new REST().setToken(process.env.DISCORD_TOKEN);
 // Deploy commands
 (async () => {
   try {
-    console.log(`🚀 Started refreshing ${commands.length} application (/) commands.`);
+    console.log(`Started refreshing ${commands.length} application (/) commands.`);
 
     let data;
 
-    if (process.env.GUILD_ID) {
+    // Check if GUILD_ID is valid (not a placeholder)
+    const guildId = process.env.GUILD_ID;
+    const isValidGuildId =
+      guildId && guildId !== 'your_test_guild_id_here_optional' && /^\d+$/.test(guildId);
+
+    if (isValidGuildId) {
       // Deploy to specific guild (faster for development)
-      data = await rest.put(
-        Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
-        { body: commands },
-      );
-      console.log(`✅ Successfully deployed ${data.length} commands to guild ${process.env.GUILD_ID}`);
+      data = await rest.put(Routes.applicationGuildCommands(process.env.CLIENT_ID, guildId), {
+        body: commands,
+      });
+      console.log(`Successfully deployed ${data.length} commands to guild ${guildId}`);
     } else {
       // Deploy globally (takes up to an hour to propagate)
-      data = await rest.put(
-        Routes.applicationCommands(process.env.CLIENT_ID),
-        { body: commands },
-      );
-      console.log(`✅ Successfully deployed ${data.length} commands globally`);
+      data = await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: commands });
+      console.log(`Successfully deployed ${data.length} commands globally`);
     }
 
-    console.log('📝 Deployed commands:', data.map(cmd => cmd.name).join(', '));
-
+    console.log('Deployed commands:', data.map((cmd) => cmd.name).join(', '));
   } catch (error) {
-    console.error('❌ Error deploying commands:', error);
+    console.error('Error deploying commands:', error);
   }
 })();

@@ -1,0 +1,43 @@
+{
+  "bot": {
+    "token": "${DISCORD_TOKEN}",
+    "id": "${CLIENT_ID}",
+    "ownerId": "",
+    "admins": [],
+    "developerCommandsServerIds": [
+      "${GUILD_ID}"
+    ]
+  },
+  "database": {
+    "mongodbUrl": ""
+  },
+  "logging": {
+    "errorLogs": "",
+    "guildJoinLogsId": "",
+    "guildLeaveLogsId": "",
+    "commandLogsChannelId": ""
+  },
+  "prefix": {
+    "value": "!"
+  },
+  "presence": {
+    "status": "online",
+    "type": "WATCHING",
+    "activity": "Reddit feeds 🔍"
+  },
+  "errorLogging": true,
+  "activityTracker": {
+    "enabled": true,
+    "ignoredPaths": [
+      "**/node_modules/**",
+      "**/logs/**",
+      "**/.git/**",
+      "**/data/**",
+      "posted_ids.json"
+    ]
+  },
+  "dashboard": {
+    "enabled": false,
+    "port": 3003
+  }
+}

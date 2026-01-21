@@ -1,0 +1,40 @@
+# Shared Configuration for Discord Bots
+
+# Bot Settings
+bot:
+  prefix: "!"
+  description: "A helpful Discord bot"
+  case_insensitive: true
+  strip_after_prefix: true
+  
+# Embed Colors (hex codes)
+colors:
+  default: 0x3498db
+  success: 0x2ecc71
+  error: 0xe74c3c
+  warning: 0xf39c12
+  info: 0x3498db
+
+# Logging
+logging:
+  level: "INFO"
+  format: "[%(asctime)s] [%(levelname)s] %(name)s: %(message)s"
+  date_format: "%Y-%m-%d %H:%M:%S"
+  
+# Rate Limits
+rate_limits:
+  commands_per_user: 5
+  time_window: 10  # seconds
+  
+# Permissions
+permissions:
+  admin_roles:
+    - "Admin"
+    - "Moderator"
+  
+# Features (enable/disable)
+features:
+  auto_moderation: false
+  welcome_messages: false
+  logging_enabled: true
+  slash_commands: true
