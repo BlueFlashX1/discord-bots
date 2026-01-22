@@ -17,10 +17,29 @@ class ProgressCommand(commands.Cog):
         self.cli = ExercismCLI()
         self.data = DataManager()
 
+    async def track_autocomplete(
+        self, interaction: discord.Interaction, current: str
+    ) -> list[app_commands.Choice[str]]:
+        """Autocomplete for track parameter - only shows joined tracks."""
+        tracks = await self.cli.get_joined_tracks()
+        if not tracks:
+            return []
+        current_lower = current.lower()
+        matching = [
+            track
+            for track in tracks
+            if current_lower in track.lower()
+        ]
+        return [
+            app_commands.Choice(name=track.title(), value=track)
+            for track in sorted(matching)[:25]
+        ]
+
     @app_commands.command(
         name="progress", description="View your Exercism progress and statistics"
     )
     @app_commands.describe(track="Track to view progress for (optional)")
+    @app_commands.autocomplete(track=track_autocomplete)
     async def progress(
         self, interaction: discord.Interaction, track: str = None
     ):

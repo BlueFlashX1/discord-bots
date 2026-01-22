@@ -20,8 +20,11 @@ class FetchCommand(commands.Cog):
     async def track_autocomplete(
         self, interaction: discord.Interaction, current: str
     ) -> list[app_commands.Choice[str]]:
-        """Autocomplete for track parameter."""
-        tracks = await self.cli.list_tracks()
+        """Autocomplete for track parameter - only shows joined tracks."""
+        tracks = await self.cli.get_joined_tracks()
+        # If no joined tracks, return empty (user needs to join tracks first)
+        if not tracks:
+            return []
         # Filter tracks that match current input (case-insensitive)
         current_lower = current.lower()
         matching = [track for track in tracks if current_lower in track.lower()]
