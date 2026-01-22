@@ -71,15 +71,34 @@ function checkCooldown(userId, customId) {
   return true; // Not on cooldown
 }
 
-// Clean up old cooldown entries periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, timestamp] of interactionCooldowns.entries()) {
-    if (now - timestamp > COOLDOWN_DURATION * 2) {
-      interactionCooldowns.delete(key);
+// Clean up old cooldown entries periodically - track interval for cleanup
+let cooldownCleanupInterval = null;
+
+function startCooldownCleanup() {
+  if (cooldownCleanupInterval) return; // Already started
+
+  cooldownCleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [key, timestamp] of interactionCooldowns.entries()) {
+      if (now - timestamp > COOLDOWN_DURATION * 2) {
+        interactionCooldowns.delete(key);
+      }
     }
+  }, 60000); // Clean up every minute
+}
+
+function stopCooldownCleanup() {
+  if (cooldownCleanupInterval) {
+    clearInterval(cooldownCleanupInterval);
+    cooldownCleanupInterval = null;
   }
-}, 60000); // Clean up every minute
+}
+
+// Start cleanup on module load
+startCooldownCleanup();
+
+// Export cleanup function for graceful shutdown
+module.exports.stopCooldownCleanup = stopCooldownCleanup;
 
 // Helper function to build control panel embed and components
 function buildControlPanel(config) {

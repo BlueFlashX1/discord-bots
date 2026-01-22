@@ -67,5 +67,28 @@ client.dailyOverview = dailyOverview;
 const userPreferences = require('./services/userPreferences');
 client.userPreferences = userPreferences;
 
+// Start sync service
+syncService.start();
+
+// Error handling
+process.on('unhandledRejection', (error) => {
+  console.error('Unhandled promise rejection:', error);
+});
+
+// Graceful shutdown handler
+async function gracefulShutdown() {
+  console.log('\nShutting down gracefully...');
+
+  // Stop sync service
+  syncService.stop();
+
+  // Destroy Discord client
+  client.destroy();
+  process.exit(0);
+}
+
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);
+
 // Login to Discord
 client.login(process.env.DISCORD_TOKEN);

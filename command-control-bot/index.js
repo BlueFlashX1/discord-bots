@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const configManager = require('./services/configManager');
 const scheduler = require('./services/scheduler');
+const statusUpdater = require('./services/statusUpdater');
 const logger = require('./services/logger');
 
 // Create Discord client
@@ -86,21 +87,31 @@ client.once('ready', () => {
 });
 
 // Graceful shutdown
-process.on('SIGINT', () => {
-  console.log('Shutting down...');
-  scheduler.stopAll();
-  configManager.stopWatching();
-  client.destroy();
-  process.exit(0);
-});
+async function gracefulShutdown() {
+  console.log('\nShutting down gracefully...');
 
-process.on('SIGTERM', () => {
-  console.log('Shutting down...');
+  // Stop all scheduled jobs
   scheduler.stopAll();
+
+  // Stop config file watcher
   configManager.stopWatching();
+
+  // Stop all status update intervals
+  statusUpdater.stopAll();
+
+  // Cleanup cooldown cleanup interval
+  const interactionCreateEvent = require('./events/interactionCreate');
+  if (interactionCreateEvent.stopCooldownCleanup) {
+    interactionCreateEvent.stopCooldownCleanup();
+  }
+
+  // Destroy Discord client
   client.destroy();
   process.exit(0);
-});
+}
+
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);
 
 // Login to Discord
 client.login(process.env.DISCORD_TOKEN).catch((error) => {

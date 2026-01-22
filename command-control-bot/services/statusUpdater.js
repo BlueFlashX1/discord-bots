@@ -197,6 +197,15 @@ class StatusUpdater {
     }
   }
 
+  stopAll() {
+    this.updateIntervals.forEach((intervalId, processId) => {
+      clearInterval(intervalId);
+      logger.debug('Stopped update interval during shutdown', { processId });
+    });
+    this.updateIntervals.clear();
+    logger.info('All status update intervals stopped');
+  }
+
   async updateMessage(processId) {
     const timer = logger.startTimer('updateMessage');
     try {

@@ -17,7 +17,11 @@ class ProblemAutoPoster {
    */
   async postProblem(userId, channelId, difficulty, source) {
     try {
-      const channel = await this.client.channels.fetch(channelId);
+      // Use cache first to avoid unnecessary API calls
+      let channel = this.client.channels.cache.get(channelId);
+      if (!channel) {
+        channel = await this.client.channels.fetch(channelId);
+      }
       if (!channel) {
         console.error(`Channel ${channelId} not found for user ${userId}`);
         return;
@@ -136,8 +140,9 @@ class ProblemAutoPoster {
 
         await this.postProblem(user.userId, user.channelId, user.difficulty, user.source);
 
-        // Small delay between posts
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        // Rate limit: Delay between posts to prevent Discord API spam
+        // Discord allows 5 messages per 5 seconds per channel
+        await new Promise((resolve) => setTimeout(resolve, 1200)); // 1.2s delay = ~5 per 6s (safe)
       } catch (error) {
         console.error(`Error processing auto-post for user ${user.userId}:`, error.message);
       }

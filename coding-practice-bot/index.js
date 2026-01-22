@@ -95,8 +95,18 @@ client
   });
 
 // Graceful shutdown
-process.on('SIGINT', async () => {
-  console.log('\nShutting down...');
+async function gracefulShutdown() {
+  console.log('\nShutting down gracefully...');
+
+  // Stop auto-poster if running
+  if (client.problemAutoPoster && client.problemAutoPoster.isActive()) {
+    client.problemAutoPoster.stop();
+  }
+
+  // Destroy Discord client
   client.destroy();
   process.exit(0);
-});
+}
+
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);

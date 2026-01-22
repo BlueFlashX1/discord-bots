@@ -33,6 +33,15 @@ class RedditMonitor {
     fs.writeFileSync(postedFile, JSON.stringify(ids, null, 2));
   }
 
+  // Optimize memory: Limit Set size in memory as well
+  trimPostedIds() {
+    const MAX_SIZE = 10000;
+    if (this.postedIds.size > MAX_SIZE) {
+      const ids = Array.from(this.postedIds).slice(-MAX_SIZE);
+      this.postedIds = new Set(ids);
+    }
+  }
+
   matchesKeywords(text, keywords) {
     // If no keywords, match all posts
     if (!keywords || keywords.length === 0) return true;
@@ -91,6 +100,15 @@ class RedditMonitor {
             this.postedIds.add(post.id);
             newPosts++;
             console.log(`Posted: ${post.title.substring(0, 50)}... (r/${subredditName} -> #${subConfig.channel_id})`);
+            
+            // Rate limit: Delay between posts to prevent Discord API spam
+            // Discord allows 5 messages per 5 seconds per channel
+            await new Promise((resolve) => setTimeout(resolve, 1200)); // 1.2s delay = ~5 per 6s (safe)
+            
+            // Trim memory periodically
+            if (this.postedIds.size > 10000) {
+              this.trimPostedIds();
+            }
           }
         }
 
@@ -102,6 +120,8 @@ class RedditMonitor {
       }
     }
 
+    // Trim memory before saving
+    this.trimPostedIds();
     this.savePostedIds();
   }
 
