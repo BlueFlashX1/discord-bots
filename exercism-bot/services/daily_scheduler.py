@@ -128,8 +128,25 @@ class DailyScheduler:
             del self.subscribers[user_id]
             logger.info(f"User {user_id} unsubscribed from daily problems")
 
-    def get_random_exercise(self, track: str, difficulty: str = "beginner") -> str:
-        """Get a random exercise for track and difficulty."""
+    async def get_random_exercise(self, track: str, difficulty: str = "beginner") -> str:
+        """
+        Get a random exercise for track and difficulty.
+        
+        Uses real Exercism difficulty data from GitHub config.json.
+        Falls back to hardcoded mapping if API fetch fails.
+        """
+        try:
+            # Try to get real difficulty data from Exercism
+            exercises = await self.cli.get_exercises_by_difficulty(track, difficulty)
+            
+            if exercises:
+                logger.debug(f"Found {len(exercises)} exercises for {track} ({difficulty})")
+                return random.choice(exercises)
+        except Exception as e:
+            logger.warning(f"Failed to fetch real difficulty data for {track}: {e}")
+        
+        # Fallback to hardcoded mapping
+        logger.debug(f"Using fallback difficulty mapping for {track} ({difficulty})")
         exercises = EXERCISE_DIFFICULTY.get(difficulty, EXERCISE_DIFFICULTY["beginner"])
         track_exercises = COMMON_EXERCISES.get(track, COMMON_EXERCISES["python"])
 
@@ -138,7 +155,7 @@ class DailyScheduler:
         if not available:
             available = track_exercises
 
-        return random.choice(available)
+        return random.choice(available) if available else "hello-world"
 
     async def send_daily_problem(self, user_id: int):
         """Send daily problem to a user with full problem details."""
@@ -174,8 +191,8 @@ class DailyScheduler:
         # Update index for next time
         config["track_index"] = (track_index + 1) % len(tracks)
 
-        # Get random exercise
-        exercise = self.get_random_exercise(track, difficulty)
+        # Get random exercise (now async - uses real Exercism difficulty data)
+        exercise = await self.get_random_exercise(track, difficulty)
 
         # Check if CLI is installed
         cli_installed, cli_message = await self.cli.check_cli_installed()
@@ -209,9 +226,11 @@ class DailyScheduler:
                             "description", f"Difficulty: {difficulty.title()}"
                         )
                         if all_tracks and len(tracks) > 1:
-                            current_track_num = (config.get('track_index', 0) % len(tracks)) + 1
+                            current_track_num = (
+                                config.get("track_index", 0) % len(tracks)
+                            ) + 1
                             description = f"**🔄 Track Rotation:** {track.title()} ({current_track_num}/{len(tracks)})\n\n{description}"
-                        
+
                         # Create rich embed with problem details
                         embed = create_daily_problem_embed(
                             exercise=exercise,
