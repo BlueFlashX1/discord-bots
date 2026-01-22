@@ -240,7 +240,30 @@ class ExercismCLI:
             "tcl",
             "vbnet",
             "zig",
+            "sqlite",
+            "r",
         ]
+
+    async def get_joined_tracks(self) -> List[str]:
+        """Get list of tracks the user has joined (from workspace)."""
+        workspace = await self.get_workspace()
+        if not workspace or not os.path.exists(workspace):
+            return []
+
+        joined_tracks = []
+        try:
+            # Check workspace directory for track folders
+            if os.path.isdir(workspace):
+                for item in os.listdir(workspace):
+                    track_path = os.path.join(workspace, item)
+                    # Only include directories (tracks) that exist
+                    # A track is considered "joined" if it has a directory in workspace
+                    if os.path.isdir(track_path):
+                        joined_tracks.append(item)
+        except Exception as e:
+            logger.debug(f"Error getting joined tracks: {e}")
+
+        return sorted(joined_tracks)
 
     async def get_exercise_info(
         self, exercise: str, track: str
