@@ -24,7 +24,9 @@ class ExercismCLI:
         """
         self.workspace = workspace
         self.cli_path = self._find_cli()
-        self._difficulty_cache: Dict[str, Dict] = {}  # track -> {exercises: {slug: difficulty}, cached_at: timestamp}
+        self._difficulty_cache: Dict[str, Dict] = (
+            {}
+        )  # track -> {exercises: {slug: difficulty}, cached_at: timestamp}
 
     def _find_cli(self) -> str:
         """Find Exercism CLI binary."""
@@ -273,64 +275,91 @@ class ExercismCLI:
     ) -> Dict[str, int]:
         """
         Get exercise difficulties for a track from Exercism's GitHub config.json.
-        
+
         Returns:
             Dict mapping exercise slug to difficulty (1-9)
         """
         # Check cache (valid for 24 hours)
         if use_cache and track in self._difficulty_cache:
             cache_data = self._difficulty_cache[track]
-            cached_at = datetime.fromisoformat(cache_data.get("cached_at", "2000-01-01"))
+            cached_at = datetime.fromisoformat(
+                cache_data.get("cached_at", "2000-01-01")
+            )
             if datetime.now() - cached_at < timedelta(hours=24):
                 return cache_data.get("exercises", {})
-        
+
         try:
             # Fetch config.json from GitHub
             import aiohttp
+
             url = f"https://raw.githubusercontent.com/exercism/{track}/main/config.json"
-            
+
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                async with session.get(
+                    url, timeout=aiohttp.ClientTimeout(total=10)
+                ) as response:
                     if response.status == 200:
                         # Read as text first, then parse JSON (GitHub raw sometimes returns text/plain)
                         text = await response.text()
                         config_data = json.loads(text)
-                        
+
                         # Extract practice exercises with difficulties
+                        # Note: Only practice exercises have difficulty ratings
+                        # Concept exercises (learning) don't have difficulty - they're sequenced in syllabus
                         exercises = {}
-                        practice_exercises = config_data.get("exercises", {}).get("practice", [])
-                        
+                        practice_exercises = config_data.get("exercises", {}).get(
+                            "practice", []
+                        )
+
                         for exercise in practice_exercises:
                             slug = exercise.get("slug")
                             difficulty = exercise.get("difficulty")
                             if slug and difficulty:
                                 exercises[slug] = difficulty
                         
+                        # Optionally include concept exercises (without difficulty)
+                        # They're learning exercises that teach concepts in sequence
+                        concept_exercises = config_data.get("exercises", {}).get(
+                            "concept", []
+                        )
+                        # Concept exercises don't have difficulty, but we can include them
+                        # as "beginner" level since they're introductory
+                        for exercise in concept_exercises:
+                            slug = exercise.get("slug")
+                            if slug:
+                                # Concept exercises are typically beginner-level (teaching concepts)
+                                # Assign difficulty 1 (beginner) for filtering purposes
+                                exercises[slug] = 1
+
                         # Cache the results
                         self._difficulty_cache[track] = {
                             "exercises": exercises,
                             "cached_at": datetime.now().isoformat(),
                         }
-                        
-                        logger.info(f"Fetched {len(exercises)} exercises with difficulties for {track}")
+
+                        logger.info(
+                            f"Fetched {len(exercises)} exercises with difficulties for {track}"
+                        )
                         return exercises
                     else:
-                        logger.warning(f"Failed to fetch config.json for {track}: HTTP {response.status}")
+                        logger.warning(
+                            f"Failed to fetch config.json for {track}: HTTP {response.status}"
+                        )
         except json.JSONDecodeError as e:
             logger.error(f"JSON decode error for {track}: {e}")
         except Exception as e:
             logger.error(f"Error fetching difficulties for {track}: {e}")
-        
+
         # Return empty dict on failure
         return {}
 
     def map_difficulty_to_category(self, numeric_difficulty: int) -> str:
         """
         Map Exercism's numeric difficulty (1-9) to text category.
-        
+
         Args:
             numeric_difficulty: Difficulty level 1-9
-            
+
         Returns:
             "beginner", "intermediate", or "advanced"
         """
@@ -346,27 +375,29 @@ class ExercismCLI:
     ) -> List[str]:
         """
         Get all exercises for a track filtered by difficulty category.
-        
+
         Args:
             track: Track name (e.g., "python")
             difficulty_category: "beginner", "intermediate", or "advanced"
-            
+
         Returns:
             List of exercise slugs matching the difficulty
         """
         difficulties = await self.get_track_difficulties(track)
-        
+
         if not difficulties:
-            logger.warning(f"No difficulty data for {track}, falling back to empty list")
+            logger.warning(
+                f"No difficulty data for {track}, falling back to empty list"
+            )
             return []
-        
+
         # Filter exercises by difficulty category
         matching_exercises = []
         for slug, numeric_diff in difficulties.items():
             category = self.map_difficulty_to_category(numeric_diff)
             if category == difficulty_category:
                 matching_exercises.append(slug)
-        
+
         return sorted(matching_exercises)
 
     async def get_exercise_info(
