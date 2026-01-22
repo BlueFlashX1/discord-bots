@@ -66,6 +66,24 @@ process.on('unhandledRejection', (error) => {
   console.error('Unhandled promise rejection:', error);
 });
 
+// Graceful shutdown handler
+async function gracefulShutdown() {
+  console.log('\nShutting down gracefully...');
+
+  // Cleanup cooldown cleanup interval from messageCreate event
+  const messageCreateEvent = require('./events/messageCreate');
+  if (messageCreateEvent.stopCooldownCleanup) {
+    messageCreateEvent.stopCooldownCleanup();
+  }
+
+  // Destroy Discord client
+  client.destroy();
+  process.exit(0);
+}
+
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);
+
 // Login to Discord
 client
   .login(process.env.DISCORD_TOKEN)

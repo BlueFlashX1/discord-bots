@@ -8,6 +8,7 @@ class YouTubeMonitor {
     this.channelManager = channelManager;
     this.quotaManager = quotaManager;
     this.cronJob = null;
+    this.quotaResetInterval = null;
     this.checkInterval = process.env.CHECK_INTERVAL || '*/15 * * * *'; // Every 15 minutes by default
     this.isRunning = false;
   }
@@ -21,8 +22,8 @@ class YouTubeMonitor {
     // Check quota reset on startup
     this.quotaManager.checkAndReset();
 
-    // Schedule quota reset check (every hour)
-    setInterval(() => {
+    // Schedule quota reset check (every hour) - track interval for cleanup
+    this.quotaResetInterval = setInterval(() => {
       if (this.quotaManager.checkAndReset()) {
         console.log('✅ API quota reset for new day');
       }
@@ -41,6 +42,10 @@ class YouTubeMonitor {
     if (this.cronJob) {
       this.cronJob.stop();
       this.cronJob = null;
+    }
+    if (this.quotaResetInterval) {
+      clearInterval(this.quotaResetInterval);
+      this.quotaResetInterval = null;
     }
     this.isRunning = false;
     console.log('⏹️ YouTube monitor stopped');
@@ -66,12 +71,16 @@ class YouTubeMonitor {
 
     console.log(`\n[${new Date().toISOString()}] Checking ${channels.length} YouTube channel(s)...`);
 
+    // Process channels sequentially with rate limiting to prevent API spam
     for (const channel of channels) {
       try {
         await this.checkChannel(channel);
+        // Small delay between channels to prevent rate limiting
+        await new Promise((resolve) => setTimeout(resolve, 500));
       } catch (error) {
         console.error(`Error checking channel ${channel.title}:`, error.message);
         this.channelManager.updateChannelHealth(channel.id, 'error', error);
+        // Continue with next channel even on error
       }
     }
   }
@@ -129,7 +138,11 @@ class YouTubeMonitor {
   }
 
   async postVideo(video, channelConfig) {
-    const discordChannel = await this.client.channels.fetch(channelConfig.discordChannelId);
+    // Use cache first to avoid unnecessary API calls
+    let discordChannel = this.client.channels.cache.get(channelConfig.discordChannelId);
+    if (!discordChannel) {
+      discordChannel = await this.client.channels.fetch(channelConfig.discordChannelId);
+    }
     if (!discordChannel) {
       throw new Error(`Discord channel ${channelConfig.discordChannelId} not found`);
     }

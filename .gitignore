@@ -1,0 +1,87 @@
+# Environment variables (CRITICAL - never commit these!)
+.env
+.env.*
+.env.local
+.env.production
+.env.shared
+*.env
+
+# Node modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+lerna-debug.log*
+
+# PM2
+.pm2/
+ecosystem.config.js.bak
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Data files (if they contain sensitive data)
+data/*.json
+!data/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Backup files
+*.backup
+*.bak
+*~
+
+# Secrets and keys (extra safety)
+secrets/
+keys/
+*.pem
+*.key
+*.cert
+
+# Python (if any Python bots)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Archives
+*.zip
+*.tar.gz
+*.rar

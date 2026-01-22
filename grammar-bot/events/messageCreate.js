@@ -23,6 +23,17 @@ module.exports = {
     // Ignore commands
     if (message.content.startsWith('/')) return;
 
+    // Process asynchronously to prevent blocking Discord event loop
+    // Use setImmediate to defer to next event loop tick
+    setImmediate(async () => {
+      await processMessage(message);
+    });
+  },
+};
+
+// Extract message processing to separate function for better performance
+async function processMessage(message) {
+
     // STRICT: Only analyze messages from explicitly configured servers
     const guildId = message.guild.id;
     const serverConfig = config.channels?.servers?.[guildId];
@@ -155,8 +166,7 @@ module.exports = {
         return;
       }
     }
-  },
-};
+}
 
 /**
  * Send grammar correction message
@@ -415,12 +425,33 @@ async function sendStreakMessage(message, user) {
   }
 }
 
-// Cleanup old cooldowns periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [userId, timestamp] of recentChecks.entries()) {
-    if (now - timestamp > COOLDOWN_MS * 2) {
-      recentChecks.delete(userId);
+// Cleanup old cooldowns periodically - track interval for cleanup
+let cooldownCleanupInterval = null;
+
+// Initialize cleanup interval (will be cleaned up on bot shutdown)
+function startCooldownCleanup() {
+  if (cooldownCleanupInterval) return; // Already started
+
+  cooldownCleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [userId, timestamp] of recentChecks.entries()) {
+      if (now - timestamp > COOLDOWN_MS * 2) {
+        recentChecks.delete(userId);
+      }
     }
+  }, 60000); // Clean up every minute
+}
+
+// Cleanup function for graceful shutdown
+function stopCooldownCleanup() {
+  if (cooldownCleanupInterval) {
+    clearInterval(cooldownCleanupInterval);
+    cooldownCleanupInterval = null;
   }
-}, 60000); // Clean up every minute
+}
+
+// Start cleanup on module load
+startCooldownCleanup();
+
+// Export cleanup function for graceful shutdown
+module.exports.stopCooldownCleanup = stopCooldownCleanup;

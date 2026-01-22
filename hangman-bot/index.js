@@ -73,10 +73,51 @@ if (fs.existsSync(eventsPath)) {
   }
 }
 
+// Store weeklyReset for cleanup
+let weeklyResetInstance = null;
+
+// Connect to database and initialize systems
+connectDatabase().then(async (dbType) => {
+  console.log(`📊 Database: ${dbType === 'mongodb' ? 'MongoDB' : 'JSON files'}`);
+
+  // Initialize shop system
+  const { getDatabase } = require('./database/db');
+  const { ShopItem, Player } = getDatabase();
+  const ShopSystem = require('./utils/shopSystem');
+  const WeeklyReset = require('./utils/weeklyReset');
+
+  const shopSystem = new ShopSystem(ShopItem, Player);
+  await shopSystem.initializeShop();
+
+  // Start weekly reset scheduler
+  weeklyResetInstance = new WeeklyReset(Player);
+  weeklyResetInstance.start();
+
+}).catch(error => {
+  console.error('Database connection error:', error);
+});
+
 // Error handling
 process.on('unhandledRejection', error => {
   console.error('Unhandled promise rejection:', error);
 });
+
+// Graceful shutdown handler
+async function gracefulShutdown() {
+  console.log('\nShutting down gracefully...');
+
+  // Stop weekly reset scheduler
+  if (weeklyResetInstance) {
+    weeklyResetInstance.stop();
+  }
+
+  // Destroy Discord client
+  client.destroy();
+  process.exit(0);
+}
+
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);
 
 // Login to Discord
 client.login(process.env.DISCORD_TOKEN)

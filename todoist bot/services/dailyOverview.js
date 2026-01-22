@@ -67,7 +67,11 @@ class DailyOverview {
 
   async sendDailyOverview(channelId) {
     try {
-      const channel = await this.client.channels.fetch(channelId);
+      // Use cache first to avoid unnecessary API calls
+      let channel = this.client.channels.cache.get(channelId);
+      if (!channel) {
+        channel = await this.client.channels.fetch(channelId);
+      }
       if (!channel) {
         console.error(`Channel ${channelId} not found`);
         return;
