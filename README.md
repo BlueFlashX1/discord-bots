@@ -236,4 +236,4 @@ Every push to `main` branch automatically deploys to the VPS and restarts bots.
 
 ## Deployment Test
 
-Testing automated deployment with new SSH key setup.
+Testing automated deployment with new SSH key setup - connection verified!
