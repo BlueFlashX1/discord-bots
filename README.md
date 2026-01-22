@@ -233,3 +233,4 @@ This repository is configured with GitHub Actions for automatic deployment to Di
 - **Deployment Guide:** `DEPLOYMENT_COMPLETE.md`
 
 Every push to `main` branch automatically deploys to the VPS and restarts bots.
+# Test deployment
