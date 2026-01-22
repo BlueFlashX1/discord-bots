@@ -4,14 +4,14 @@ import asyncio
 import logging
 import random
 from datetime import datetime, time
-from typing import Optional, Dict, List
+from typing import Dict, Optional
+
+from discord.ext import tasks
+from utils.data_manager import DataManager
+from utils.embeds import create_daily_problem_embed
 
 import discord
-from discord.ext import tasks
-
 from services.exercism_cli import ExercismCLI
-from utils.embeds import create_daily_problem_embed
-from utils.data_manager import DataManager
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,9 @@ class DailyScheduler:
         self.bot = bot
         self.cli = cli
         self.data = data
-        self.subscribers: Dict[int, Dict] = {}  # user_id -> {track, channel_id, difficulty}
+        self.subscribers: Dict[int, Dict] = (
+            {}
+        )  # user_id -> {tracks, channel_id, difficulty, track_index}
 
     def subscribe(
         self,
@@ -70,15 +72,55 @@ class DailyScheduler:
         track: str = "python",
         channel_id: Optional[int] = None,
         difficulty: str = "beginner",
+        all_tracks: bool = False,
     ):
-        """Subscribe a user to daily problems."""
-        self.subscribers[user_id] = {
-            "track": track,
-            "channel_id": channel_id,
-            "difficulty": difficulty,
-            "last_sent": None,
-        }
-        logger.info(f"User {user_id} subscribed to daily {track} problems ({difficulty})")
+        """Subscribe a user to daily problems.
+
+        Args:
+            user_id: Discord user ID
+            track: Single track name (if all_tracks=False)
+            channel_id: Channel to send to (None = DM)
+            difficulty: Difficulty level
+            all_tracks: If True, subscribe to all joined tracks and rotate
+        """
+        if all_tracks:
+            # Get all joined tracks
+            import asyncio
+
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If loop is running, we need to use a different approach
+                    # Store a flag and fetch tracks when sending
+                    tracks = None  # Will be fetched dynamically
+                else:
+                    tracks = loop.run_until_complete(self.cli.get_joined_tracks())
+            except:
+                tracks = None
+
+            self.subscribers[user_id] = {
+                "tracks": tracks,  # None means "all joined tracks" - fetch dynamically
+                "all_tracks": True,
+                "channel_id": channel_id,
+                "difficulty": difficulty,
+                "track_index": 0,  # Current track in rotation
+                "last_sent": None,
+            }
+            logger.info(
+                f"User {user_id} subscribed to daily problems from ALL joined tracks ({difficulty})"
+            )
+        else:
+            self.subscribers[user_id] = {
+                "tracks": [track],  # Single track in list for consistency
+                "all_tracks": False,
+                "channel_id": channel_id,
+                "difficulty": difficulty,
+                "track_index": 0,
+                "last_sent": None,
+            }
+            logger.info(
+                f"User {user_id} subscribed to daily {track} problems ({difficulty})"
+            )
 
     def unsubscribe(self, user_id: int):
         """Unsubscribe a user from daily problems."""
@@ -99,24 +141,109 @@ class DailyScheduler:
         return random.choice(available)
 
     async def send_daily_problem(self, user_id: int):
-        """Send daily problem to a user."""
+        """Send daily problem to a user with full problem details."""
         if user_id not in self.subscribers:
             return
 
         config = self.subscribers[user_id]
-        track = config["track"]
         difficulty = config["difficulty"]
         channel_id = config.get("channel_id")
+        all_tracks = config.get("all_tracks", False)
+
+        # Get tracks list
+        if all_tracks:
+            # Fetch current joined tracks dynamically
+            tracks = await self.cli.get_joined_tracks()
+            if not tracks:
+                # No joined tracks - can't send problem
+                logger.warning(
+                    f"User {user_id} subscribed to all tracks but has no joined tracks"
+                )
+                return
+        else:
+            tracks = config.get("tracks", [config.get("track", "python")])
+
+        if not tracks:
+            logger.warning(f"User {user_id} has no tracks configured")
+            return
+
+        # Rotate through tracks (round-robin)
+        track_index = config.get("track_index", 0)
+        track = tracks[track_index % len(tracks)]
+
+        # Update index for next time
+        config["track_index"] = (track_index + 1) % len(tracks)
 
         # Get random exercise
         exercise = self.get_random_exercise(track, difficulty)
 
-        # Create embed
-        embed = create_daily_problem_embed(
-            exercise=exercise,
-            track=track,
-            description=f"Difficulty: {difficulty.title()}\n\nUse `/fetch {exercise} {track}` to download!",
-        )
+        # Check if CLI is installed
+        cli_installed, cli_message = await self.cli.check_cli_installed()
+
+        if not cli_installed:
+            # CLI not installed - send installation help
+            embed = create_daily_problem_embed(
+                exercise=exercise,
+                track=track,
+                description=f"Difficulty: {difficulty.title()}",
+                cli_installed=False,
+                cli_message=cli_message,
+            )
+        else:
+            # Try to fetch and display the problem
+            try:
+                # Download the exercise
+                success, download_msg, exercise_path = await self.cli.download_exercise(
+                    exercise, track
+                )
+
+                if success and exercise_path:
+                    # Get exercise info (README, starter code, etc.)
+                    info_success, exercise_info = await self.cli.get_exercise_info(
+                        exercise, track
+                    )
+
+                    if info_success:
+                        # Create rich embed with problem details
+                        embed = create_daily_problem_embed(
+                            exercise=exercise,
+                            track=track,
+                            description=exercise_info.get(
+                                "description", f"Difficulty: {difficulty.title()}"
+                            ),
+                            exercise_path=exercise_path,
+                            readme=exercise_info.get("readme"),
+                            starter_code=exercise_info.get("starter_code"),
+                            starter_file=exercise_info.get("starter_file"),
+                            test_file=exercise_info.get("test_file"),
+                            cli_installed=True,
+                        )
+                    else:
+                        # Fallback if we can't read exercise files
+                        embed = create_daily_problem_embed(
+                            exercise=exercise,
+                            track=track,
+                            description=f"Difficulty: {difficulty.title()}\n\n✅ Exercise downloaded! Check your Exercism workspace.",
+                            exercise_path=exercise_path,
+                            cli_installed=True,
+                        )
+                else:
+                    # Download failed - show error but still provide exercise info
+                    embed = create_daily_problem_embed(
+                        exercise=exercise,
+                        track=track,
+                        description=f"Difficulty: {difficulty.title()}\n\n⚠️ Could not download automatically. Use `/fetch {exercise} {track}` to download manually.\n\nError: {download_msg}",
+                        cli_installed=True,
+                    )
+            except Exception as e:
+                logger.error(f"Error fetching exercise {exercise} ({track}): {e}")
+                # Fallback to basic embed
+                embed = create_daily_problem_embed(
+                    exercise=exercise,
+                    track=track,
+                    description=f"Difficulty: {difficulty.title()}\n\nUse `/fetch {exercise} {track}` to download!",
+                    cli_installed=True,
+                )
 
         # Send to channel or DM
         try:
@@ -133,7 +260,14 @@ class DailyScheduler:
                 await user.send(embed=embed)
 
             config["last_sent"] = datetime.now().isoformat()
-            logger.info(f"Sent daily problem {exercise} ({track}) to user {user_id}")
+            track_info = (
+                f"{track} (track {config.get('track_index', 0) + 1}/{len(tracks)})"
+                if all_tracks
+                else track
+            )
+            logger.info(
+                f"Sent daily problem {exercise} ({track_info}) to user {user_id}"
+            )
         except Exception as e:
             logger.error(f"Failed to send daily problem to {user_id}: {e}")
 

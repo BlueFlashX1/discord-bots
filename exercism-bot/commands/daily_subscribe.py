@@ -1,11 +1,11 @@
 """Daily problem subscription command."""
 
+from discord.ext import commands
+from services.exercism_cli import ExercismCLI
+from utils.embeds import create_error_embed, create_success_embed
+
 import discord
 from discord import app_commands
-from discord.ext import commands
-
-from services.exercism_cli import ExercismCLI
-from utils.embeds import create_success_embed, create_error_embed
 
 
 class DailySubscribeCommand(commands.Cog):
@@ -23,11 +23,7 @@ class DailySubscribeCommand(commands.Cog):
         if not tracks:
             return []
         current_lower = current.lower()
-        matching = [
-            track
-            for track in tracks
-            if current_lower in track.lower()
-        ]
+        matching = [track for track in tracks if current_lower in track.lower()]
         return [
             app_commands.Choice(name=track.title(), value=track)
             for track in sorted(matching)[:25]
@@ -38,9 +34,10 @@ class DailySubscribeCommand(commands.Cog):
         description="Subscribe to daily coding problems",
     )
     @app_commands.describe(
-        track="Programming track (default: python)",
+        track="Programming track (or 'all' for all joined tracks)",
         difficulty="Difficulty level",
         channel="Channel to send daily problems (optional, defaults to DM)",
+        all_tracks="Subscribe to all joined tracks and rotate daily",
     )
     @app_commands.autocomplete(track=track_autocomplete)
     @app_commands.choices(
@@ -56,6 +53,7 @@ class DailySubscribeCommand(commands.Cog):
         track: str = "python",
         difficulty: str = "beginner",
         channel: discord.TextChannel = None,
+        all_tracks: bool = False,
     ):
         """Subscribe to daily problems."""
         await interaction.response.defer()
@@ -70,22 +68,55 @@ class DailySubscribeCommand(commands.Cog):
             )
             return
 
+        # Check if user wants all tracks
+        if track.lower() == "all" or all_tracks:
+            all_tracks = True
+            joined_tracks = await self.cli.get_joined_tracks()
+            if not joined_tracks:
+                await interaction.followup.send(
+                    embed=create_error_embed(
+                        "No joined tracks found. Join tracks on Exercism.org first!\n"
+                        "Visit: https://exercism.org/tracks"
+                    )
+                )
+                return
+            track = None  # Will use all tracks
+        else:
+            all_tracks = False
+            track = track.lower()
+
         channel_id = channel.id if channel else None
         scheduler.subscribe(
             user_id=interaction.user.id,
-            track=track.lower(),
+            track=track or "python",  # Fallback if all_tracks
             channel_id=channel_id,
             difficulty=difficulty.lower(),
+            all_tracks=all_tracks,
         )
 
         location = f"#{channel.name}" if channel else "your DMs"
-        embed = create_success_embed(
-            f"✅ Subscribed to daily {track.title()} problems!\n\n"
-            f"**Difficulty:** {difficulty.title()}\n"
-            f"**Delivery:** {location}\n"
-            f"**Time:** 9:00 AM daily\n\n"
-            f"Use `/daily_unsubscribe` to stop receiving daily problems."
-        )
+
+        if all_tracks:
+            joined_tracks = await self.cli.get_joined_tracks()
+            tracks_list = ", ".join([t.title() for t in joined_tracks])
+            embed = create_success_embed(
+                f"✅ Subscribed to daily problems from ALL joined tracks!\n\n"
+                f"**Tracks:** {tracks_list}\n"
+                f"**Rotation:** One problem per day, rotating through all tracks\n"
+                f"**Difficulty:** {difficulty.title()}\n"
+                f"**Delivery:** {location}\n"
+                f"**Time:** 9:00 AM daily\n\n"
+                f"Use `/daily_unsubscribe` to stop receiving daily problems."
+            )
+        else:
+            embed = create_success_embed(
+                f"✅ Subscribed to daily {track.title()} problems!\n\n"
+                f"**Difficulty:** {difficulty.title()}\n"
+                f"**Delivery:** {location}\n"
+                f"**Time:** 9:00 AM daily\n\n"
+                f"💡 Tip: Use `track: all` to rotate through all joined tracks!\n\n"
+                f"Use `/daily_unsubscribe` to stop receiving daily problems."
+            )
 
         await interaction.followup.send(embed=embed)
 
