@@ -204,13 +204,19 @@ class DailyScheduler:
                     )
 
                     if info_success:
+                        # Add rotation info if using all tracks
+                        description = exercise_info.get(
+                            "description", f"Difficulty: {difficulty.title()}"
+                        )
+                        if all_tracks and len(tracks) > 1:
+                            current_track_num = (config.get('track_index', 0) % len(tracks)) + 1
+                            description = f"**🔄 Track Rotation:** {track.title()} ({current_track_num}/{len(tracks)})\n\n{description}"
+                        
                         # Create rich embed with problem details
                         embed = create_daily_problem_embed(
                             exercise=exercise,
                             track=track,
-                            description=exercise_info.get(
-                                "description", f"Difficulty: {difficulty.title()}"
-                            ),
+                            description=description,
                             exercise_path=exercise_path,
                             readme=exercise_info.get("readme"),
                             starter_code=exercise_info.get("starter_code"),
