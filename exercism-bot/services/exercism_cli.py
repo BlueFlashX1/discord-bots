@@ -1,12 +1,11 @@
 """Exercism CLI integration service."""
 
 import asyncio
-import json
+import glob
 import logging
 import os
 import subprocess
-from pathlib import Path
-from typing import Optional, Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +16,7 @@ class ExercismCLI:
     def __init__(self, workspace: Optional[str] = None):
         """
         Initialize Exercism CLI wrapper.
-        
+
         Args:
             workspace: Exercism workspace path (defaults to CLI config)
         """
@@ -57,11 +56,11 @@ class ExercismCLI:
     ) -> Tuple[int, str, str]:
         """
         Run an Exercism CLI command asynchronously.
-        
+
         Args:
             args: Command arguments (without 'exercism')
             timeout: Command timeout in seconds
-            
+
         Returns:
             Tuple of (returncode, stdout, stderr)
         """
@@ -97,11 +96,11 @@ class ExercismCLI:
     ) -> Tuple[bool, str, Optional[str]]:
         """
         Download an exercise from Exercism.
-        
+
         Args:
             exercise: Exercise slug (e.g., 'hello-world')
             track: Track slug (e.g., 'python')
-            
+
         Returns:
             Tuple of (success, message, exercise_path)
         """
@@ -137,10 +136,10 @@ class ExercismCLI:
     async def submit_solution(self, file_path: str) -> Tuple[bool, str]:
         """
         Submit a solution file.
-        
+
         Args:
             file_path: Path to solution file
-            
+
         Returns:
             Tuple of (success, message)
         """
@@ -182,8 +181,7 @@ class ExercismCLI:
         return False, {}
 
     async def list_tracks(self) -> List[str]:
-        """List available tracks (simplified - would need API for full list)."""
-        # Common tracks - in production, you'd fetch from API or CLI
+        """List available tracks (comprehensive list of Exercism tracks)."""
         return [
             "python",
             "javascript",
@@ -203,16 +201,45 @@ class ExercismCLI:
             "haskell",
             "scala",
             "fsharp",
+            "c",
+            "cobol",
+            "common-lisp",
+            "d",
+            "erlang",
+            "factor",
+            "forth",
+            "fortran",
+            "groovy",
+            "julia",
+            "lua",
+            "nim",
+            "objective-c",
+            "ocaml",
+            "perl",
+            "prolog",
+            "purescript",
+            "racket",
+            "raku",
+            "reasonml",
+            "scheme",
+            "shell",
+            "tcl",
+            "vbnet",
+            "zig",
         ]
 
     async def get_exercise_info(
         self, exercise: str, track: str
     ) -> Tuple[bool, Dict[str, str]]:
         """
-        Get exercise information.
-        
-        Note: This is a simplified version. Full implementation would
-        need to parse exercise files or use Exercism API.
+        Get exercise information including README and starter files.
+
+        Returns:
+            Tuple of (success, info_dict) where info_dict contains:
+            - path: Exercise directory path
+            - readme: README.md content
+            - starter_code: Starter code file content (if available)
+            - test_file: Test file content (if available)
         """
         workspace = await self.get_workspace()
         if not workspace:
@@ -224,14 +251,82 @@ class ExercismCLI:
 
         info = {"path": exercise_path}
 
-        # Try to read README.md
+        # Read README.md
         readme_path = os.path.join(exercise_path, "README.md")
         if os.path.exists(readme_path):
             try:
                 with open(readme_path, "r", encoding="utf-8") as f:
-                    info["readme"] = f.read()[:1000]  # First 1000 chars
+                    readme_content = f.read()
+                    # Extract description (usually first paragraph or section)
+                    info["readme"] = readme_content
+                    # Try to extract a short description (first meaningful paragraph)
+                    lines = readme_content.split("\n")
+                    description_lines = []
+                    for line in lines:
+                        line = line.strip()
+                        if (
+                            line
+                            and not line.startswith("#")
+                            and not line.startswith("<!--")
+                        ):
+                            description_lines.append(line)
+                            if (
+                                len(description_lines) >= 3
+                            ):  # Get first few meaningful lines
+                                break
+                    info["description"] = (
+                        "\n".join(description_lines[:500])
+                        if description_lines
+                        else readme_content[:500]
+                    )
             except Exception as e:
                 logger.error(f"Error reading README: {e}")
+
+        # Try to find starter code file (common patterns)
+        starter_patterns = {
+            "python": ["*.py"],
+            "javascript": ["*.js"],
+            "typescript": ["*.ts"],
+            "rust": ["*.rs"],
+            "go": ["*.go"],
+            "java": ["*.java"],
+            "cpp": ["*.cpp", "*.h"],
+            "csharp": ["*.cs"],
+        }
+
+        patterns = starter_patterns.get(track.lower(), ["*"])
+        for pattern in patterns:
+            files = glob.glob(os.path.join(exercise_path, pattern))
+            # Exclude test files
+            starter_files = [
+                f
+                for f in files
+                if "test" not in os.path.basename(f).lower()
+                and "spec" not in os.path.basename(f).lower()
+            ]
+            if starter_files:
+                try:
+                    with open(starter_files[0], "r", encoding="utf-8") as f:
+                        info["starter_code"] = f.read()[:1000]  # First 1000 chars
+                        info["starter_file"] = os.path.basename(starter_files[0])
+                except Exception as e:
+                    logger.debug(f"Error reading starter file: {e}")
+                break
+
+        # Try to find test file
+        test_patterns = ["*test*", "*spec*", "*_test.*", "*_spec.*"]
+        for pattern in test_patterns:
+            files = glob.glob(os.path.join(exercise_path, pattern))
+            if files:
+                try:
+                    with open(files[0], "r", encoding="utf-8") as f:
+                        info["test_file"] = os.path.basename(files[0])
+                        test_content = f.read()
+                        # Extract test cases summary (first few test functions)
+                        info["test_preview"] = test_content[:800]  # First 800 chars
+                except Exception as e:
+                    logger.debug(f"Error reading test file: {e}")
+                break
 
         return True, info
 
@@ -242,4 +337,7 @@ class ExercismCLI:
         if returncode == 0:
             version = stdout.strip().split("\n")[0] if stdout else "Unknown"
             return True, version
-        return False, "Exercism CLI not found. Install from https://exercism.org/cli-walkthrough"
+        return (
+            False,
+            "Exercism CLI not found. Install from https://exercism.org/cli-walkthrough",
+        )

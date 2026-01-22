@@ -1,12 +1,12 @@
 """Fetch exercise command."""
 
+from discord.ext import commands
+from services.exercism_cli import ExercismCLI
+from utils.data_manager import DataManager
+from utils.embeds import create_error_embed, create_exercise_embed
+
 import discord
 from discord import app_commands
-from discord.ext import commands
-
-from services.exercism_cli import ExercismCLI
-from utils.embeds import create_exercise_embed, create_error_embed
-from utils.data_manager import DataManager
 
 
 class FetchCommand(commands.Cog):
@@ -17,11 +17,28 @@ class FetchCommand(commands.Cog):
         self.cli = ExercismCLI()
         self.data = DataManager()
 
-    @app_commands.command(name="fetch", description="Download an exercise from Exercism")
+    async def track_autocomplete(
+        self, interaction: discord.Interaction, current: str
+    ) -> list[app_commands.Choice[str]]:
+        """Autocomplete for track parameter."""
+        tracks = await self.cli.list_tracks()
+        # Filter tracks that match current input (case-insensitive)
+        current_lower = current.lower()
+        matching = [track for track in tracks if current_lower in track.lower()]
+        # Return top 25 matches (Discord limit)
+        return [
+            app_commands.Choice(name=track.title(), value=track)
+            for track in sorted(matching)[:25]
+        ]
+
+    @app_commands.command(
+        name="fetch", description="Download an exercise from Exercism"
+    )
     @app_commands.describe(
         exercise="Exercise name (e.g., 'hello-world')",
         track="Programming track (e.g., 'python', 'javascript')",
     )
+    @app_commands.autocomplete(track=track_autocomplete)
     async def fetch(
         self,
         interaction: discord.Interaction,
