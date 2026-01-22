@@ -292,7 +292,9 @@ class ExercismCLI:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
                     if response.status == 200:
-                        config_data = await response.json()
+                        # Read as text first, then parse JSON (GitHub raw sometimes returns text/plain)
+                        text = await response.text()
+                        config_data = json.loads(text)
                         
                         # Extract practice exercises with difficulties
                         exercises = {}
@@ -314,6 +316,8 @@ class ExercismCLI:
                         return exercises
                     else:
                         logger.warning(f"Failed to fetch config.json for {track}: HTTP {response.status}")
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error for {track}: {e}")
         except Exception as e:
             logger.error(f"Error fetching difficulties for {track}: {e}")
         
