@@ -223,3 +223,13 @@ All bots are operational and using:
 
 **Last Updated:** 2025-01-21  
 **Location:** `/Users/matthewthompson/Documents/DEVELOPMENT/discord/bots`
+
+## 🚀 Auto-Deployment
+
+This repository is configured with GitHub Actions for automatic deployment to DigitalOcean VPS.
+
+- **Workflow:** `.github/workflows/deploy.yml`
+- **Setup Guide:** `GITHUB_ACTIONS_SETUP.md`
+- **Deployment Guide:** `DEPLOYMENT_COMPLETE.md`
+
+Every push to `main` branch automatically deploys to the VPS and restarts bots.
