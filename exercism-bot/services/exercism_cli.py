@@ -168,16 +168,30 @@ class ExercismCLI:
         return None
 
     async def get_user_info(self) -> Tuple[bool, Dict[str, str]]:
-        """Get current user information."""
-        returncode, stdout, stderr = await self._run_command(["whoami"])
+        """Get current user information by checking config."""
+        # In Exercism CLI 3.x, there's no 'whoami' command
+        # Instead, we check if token is configured
+        config_path = os.path.expanduser("~/.config/exercism/user.json")
+        if not os.path.exists(config_path):
+            config_path = os.path.expanduser("~/.exercism/user.json")
 
-        if returncode == 0:
-            info = {}
-            for line in stdout.strip().split("\n"):
-                if ":" in line:
-                    key, value = line.split(":", 1)
-                    info[key.strip().lower()] = value.strip()
-            return True, info
+        if os.path.exists(config_path):
+            try:
+                import json
+
+                with open(config_path, "r") as f:
+                    config = json.load(f)
+                    if config.get("token"):
+                        # Token exists - try to verify by checking workspace
+                        workspace = await self.get_workspace()
+                        if workspace:
+                            return True, {
+                                "authenticated": "true",
+                                "workspace": workspace,
+                            }
+            except Exception as e:
+                logger.debug(f"Error reading config: {e}")
+
         return False, {}
 
     async def list_tracks(self) -> List[str]:
