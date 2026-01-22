@@ -18,16 +18,33 @@ class DailySubscribeCommand(commands.Cog):
     async def track_autocomplete(
         self, interaction: discord.Interaction, current: str
     ) -> list[app_commands.Choice[str]]:
-        """Autocomplete for track parameter - only shows joined tracks."""
+        """Autocomplete for track parameter - shows joined tracks + 'all' option."""
         tracks = await self.cli.get_joined_tracks()
-        if not tracks:
-            return []
         current_lower = current.lower()
-        matching = [track for track in tracks if current_lower in track.lower()]
-        return [
-            app_commands.Choice(name=track.title(), value=track)
-            for track in sorted(matching)[:25]
-        ]
+
+        choices = []
+
+        # Always include "all" option if user types "all" or "a" or empty
+        if "all" in current_lower or current_lower == "" or current_lower == "a":
+            choices.append(
+                app_commands.Choice(name="All Tracks (Rotate Daily)", value="all")
+            )
+
+        # Add joined tracks
+        if tracks:
+            matching = [
+                track
+                for track in tracks
+                if current_lower in track.lower() and track.lower() != "all"
+            ]
+            choices.extend(
+                [
+                    app_commands.Choice(name=track.title(), value=track)
+                    for track in sorted(matching)
+                ]
+            )
+
+        return choices[:25]  # Discord limit
 
     @app_commands.command(
         name="daily_subscribe",
