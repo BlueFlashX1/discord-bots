@@ -35,9 +35,16 @@ class SubmitCommand(commands.Cog):
         """Submit a solution file."""
         await interaction.response.defer()
 
-        # Download the file
+        # Download the file to bot's data directory (submissions folder)
         try:
-            file_path = f"/tmp/{file.filename}"
+            # Create submissions directory if it doesn't exist
+            import os
+            submissions_dir = os.path.join("data", "submissions")
+            os.makedirs(submissions_dir, exist_ok=True)
+            
+            # Save with user ID prefix to avoid conflicts
+            safe_filename = f"{interaction.user.id}_{file.filename}"
+            file_path = os.path.join(submissions_dir, safe_filename)
             await file.save(file_path)
         except Exception as e:
             await interaction.followup.send(
@@ -60,13 +67,9 @@ class SubmitCommand(commands.Cog):
         else:
             await interaction.followup.send(embed=create_error_embed(message))
 
-        # Clean up temp file
-        try:
-            import os
-
-            os.remove(file_path)
-        except Exception:
-            pass
+        # Note: File is kept in data/submissions/ for reference
+        # It can be cleaned up later if needed, but we keep it for now
+        # to allow users to resubmit or review their submissions
 
 
 async def setup(bot: commands.Bot):

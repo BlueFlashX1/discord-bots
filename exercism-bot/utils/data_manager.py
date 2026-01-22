@@ -65,6 +65,8 @@ class DataManager:
         self, user_id: int, exercise: str, track: str, file_path: str
     ) -> None:
         """Track a submission."""
+        import datetime
+        
         submissions = self.load_json("submissions.json", {})
         user_key = str(user_id)
 
@@ -76,7 +78,7 @@ class DataManager:
                 "exercise": exercise,
                 "track": track,
                 "file_path": file_path,
-                "timestamp": None,  # Could add timestamp
+                "timestamp": datetime.datetime.now().isoformat(),
             }
         )
 
