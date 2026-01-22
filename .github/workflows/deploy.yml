@@ -1,0 +1,47 @@
+name: Deploy to DigitalOcean VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            cd /root/discord-bots
+
+            # Pull latest changes
+            git pull origin main
+
+            # Update dependencies for each bot
+            for bot in coding-practice-bot command-control-bot hangman-bot spelling-bee-bot grammar-bot "todoist bot" reddit-filter-bot youtube-monitor-bot; do
+              if [ -d "$bot" ] && [ -f "$bot/package.json" ]; then
+                echo "Updating dependencies for $bot..."
+                cd "$bot"
+                npm install --production
+                cd /root/discord-bots
+              fi
+            done
+
+            # Reload PM2 with updated ecosystem
+            pm2 reload ecosystem.config.js || pm2 restart all
+
+            # Save PM2 configuration
+            pm2 save
+
+            # Show status
+            pm2 list
