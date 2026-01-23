@@ -17,15 +17,18 @@ import discord
 # Load environment variables
 load_dotenv()
 
-# Configure logging (minimal, no verbose debugging)
+# Configure logging (strategic debugging, no verbose spam)
 logging.basicConfig(
-    level=logging.WARNING,  # Only warnings and errors
-    format="%(levelname)s - %(message)s",
+    level=logging.INFO,  # INFO for critical operations, WARNING/ERROR for issues
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 # Suppress discord.py verbose logging
 logging.getLogger("discord").setLevel(logging.WARNING)
 logging.getLogger("discord.http").setLevel(logging.WARNING)
 logging.getLogger("discord.gateway").setLevel(logging.WARNING)
+# Suppress aiohttp unclosed connector warnings
+logging.getLogger("aiohttp").setLevel(logging.ERROR)
 
 logger = logging.getLogger(__name__)
 
@@ -66,19 +69,24 @@ class GitHubBot(commands.Bot):
                     cog_name = f"commands.{file.stem}"
                     await self.load_extension(cog_name)
                 except Exception as e:
-                    print(f"⚠️  Failed to load {file.stem}: {e}")
+                    logger.error(f"Failed to load cog {file.stem}: {e}")
 
         # Sync commands
-        if GUILD_ID:
-            guild = discord.Object(id=int(GUILD_ID))
-            self.tree.copy_global_to(guild=guild)
-            await self.tree.sync(guild=guild)
+        # Handle GUILD_ID edge cases: None, empty string, whitespace, placeholder, non-digit
+        if GUILD_ID and GUILD_ID.strip() and GUILD_ID.strip() != 'your_guild_id' and GUILD_ID.strip().isdigit():
+            try:
+                guild = discord.Object(id=int(GUILD_ID.strip()))
+                self.tree.copy_global_to(guild=guild)
+                await self.tree.sync(guild=guild)
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Invalid GUILD_ID format, syncing globally: {e}")
+                await self.tree.sync()
         else:
             await self.tree.sync()
 
     async def on_ready(self):
         """Called when the bot is ready."""
-        print(f"✅ {self.user} connected to Discord ({len(self.guilds)} guild(s))")
+        logger.info(f"Bot connected: {self.user} ({len(self.guilds)} guild(s))")
 
         # Initialize services
         data = DataManager()
@@ -93,11 +101,34 @@ class GitHubBot(commands.Bot):
         # Start monitoring services
         if GITHUB_TOKEN:
             self.repo_monitor.start()
-            print("✅ Repository monitor started")
+            logger.info("Repository monitor started")
             self.contribution_tracker.start()
-            print("✅ Contribution tracker started")
+            logger.info("Contribution tracker started")
         else:
-            print("⚠️  GitHub token not set - monitoring disabled")
+            logger.warning("GitHub token not set - monitoring disabled")
+
+    async def close(self):
+        """Clean up resources when bot is closing."""
+        try:
+            if hasattr(self, 'repo_monitor'):
+                self.repo_monitor.stop()
+            if hasattr(self, 'contribution_tracker'):
+                self.contribution_tracker.stop()
+            # Close GitHub service sessions
+            if hasattr(self, 'repo_monitor') and hasattr(self.repo_monitor, 'github'):
+                try:
+                    await self.repo_monitor.github.close()
+                except Exception as e:
+                    logger.error(f"Error closing repo_monitor GitHub session: {e}")
+            if hasattr(self, 'contribution_tracker') and hasattr(self.contribution_tracker, 'github'):
+                try:
+                    await self.contribution_tracker.github.close()
+                except Exception as e:
+                    logger.error(f"Error closing contribution_tracker GitHub session: {e}")
+        except Exception as e:
+            logger.error(f"Error during bot cleanup: {e}")
+        finally:
+            await super().close()
 
     async def on_command_error(self, ctx, error):
         """Handle command errors."""
@@ -116,7 +147,7 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("Bot stopped by user")
+        logger.info("Bot stopped by user")
     except Exception as e:
-        print(f"Fatal error: {e}")
+        logger.critical(f"Fatal error: {e}", exc_info=True)
         sys.exit(1)

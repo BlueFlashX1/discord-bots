@@ -32,11 +32,17 @@ async def deploy():
     async def on_ready():
         logger.info(f"Logged in as {bot.user}")
 
-        if GUILD_ID:
-            guild = discord.Object(id=int(GUILD_ID))
-            tree.copy_global_to(guild=guild)
-            await tree.sync(guild=guild)
-            logger.info(f"Synced commands to guild {GUILD_ID}")
+        # Handle GUILD_ID edge cases: None, empty string, whitespace, placeholder, non-digit
+        if GUILD_ID and GUILD_ID.strip() and GUILD_ID.strip() != 'your_guild_id' and GUILD_ID.strip().isdigit():
+            try:
+                guild = discord.Object(id=int(GUILD_ID.strip()))
+                tree.copy_global_to(guild=guild)
+                await tree.sync(guild=guild)
+                logger.info(f"Synced commands to guild {GUILD_ID.strip()}")
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Invalid GUILD_ID format, syncing globally: {e}")
+                await tree.sync()
+                logger.info("Synced global commands")
         else:
             await tree.sync()
             logger.info("Synced global commands")

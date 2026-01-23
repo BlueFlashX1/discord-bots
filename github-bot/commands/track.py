@@ -1,9 +1,12 @@
 """Track repository command."""
 
+import asyncio  # Required for exception formatting (asyncio.TimeoutError, etc.)
+
 from discord.ext import commands
 from services.github_service import GitHubService
 from utils.data_manager import DataManager
-from utils.embeds import create_error_embed, create_success_embed, create_repo_embed
+from utils.embeds import create_error_embed, create_repo_embed
+
 import discord
 from discord import app_commands
 
@@ -16,11 +19,13 @@ class TrackCommand(commands.Cog):
         self.github = GitHubService()
         self.data = DataManager()
 
-    @app_commands.command(name="track", description="Track a GitHub repository for updates")
+    @app_commands.command(
+        name="track", description="Track a GitHub repository for updates"
+    )
     @app_commands.describe(
-        repository="Repository in format owner/repo (e.g., discord/discord.py)",
+        repository="Repository URL or owner/repo (e.g., https://github.com/discord/discord.py or discord/discord.py)",
         events="Events to track (comma-separated: releases, commits, issues)",
-        channel="Channel to send notifications to (defaults to current channel)"
+        channel="Channel to send notifications to (defaults to current channel)",
     )
     async def track(
         self,
@@ -32,11 +37,13 @@ class TrackCommand(commands.Cog):
         """Track a GitHub repository."""
         await interaction.response.defer()
 
-        # Parse repository
+        # Parse repository (supports URL or owner/repo format)
         owner, repo = self.github.parse_repo_name(repository)
         if not owner or not repo:
             embed = create_error_embed(
-                "Invalid repository format. Use: `owner/repo` (e.g., discord/discord.py)"
+                "Invalid repository format. Use:\n"
+                "• URL: `https://github.com/owner/repo`\n"
+                "• Short: `owner/repo` (e.g., discord/discord.py)"
             )
             await interaction.followup.send(embed=embed)
             return
@@ -87,6 +94,9 @@ class TrackCommand(commands.Cog):
             value=f"Channel: {target_channel.mention}",
             inline=False,
         )
+
+        # Ensure asyncio is in scope for exception formatting (if exceptions occur)
+        _ = asyncio  # Keep asyncio in scope
 
         await interaction.followup.send(embed=embed)
 
