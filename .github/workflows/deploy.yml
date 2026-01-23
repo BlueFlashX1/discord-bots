@@ -24,8 +24,10 @@ jobs:
           script: |
             cd /root/discord-bots
 
-            # Pull latest changes
-            git pull origin main
+            # Force reset to match remote (discard any local changes on VPS)
+            git fetch origin main
+            git reset --hard origin/main
+            git clean -fd
 
             # Update dependencies for each bot
             for bot in coding-practice-bot command-control-bot hangman-bot spelling-bee-bot grammar-bot "todoist bot" reddit-filter-bot youtube-monitor-bot; do
