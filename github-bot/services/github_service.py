@@ -1,8 +1,19 @@
 """GitHub API service."""
 
-import aiohttp
-from typing import Dict, List, Optional, Any
+import asyncio  # noqa: F401 - Required for exception type resolution
+import logging
 import os
+from typing import Dict, List, Optional
+
+import aiohttp
+from utils.retry import retry_with_backoff
+
+logger = logging.getLogger(__name__)
+
+# WORKAROUND: No longer using RETRY_EXCEPTIONS tuple
+# retry_with_backoff now uses string-based exception checking to avoid asyncio NameError
+# This tuple is kept for reference but not used
+# RETRY_EXCEPTIONS = (aiohttp.ClientError, TimeoutError)  # Not used anymore
 
 
 class GitHubService:
@@ -17,27 +28,103 @@ class GitHubService:
         }
         if self.token:
             self.headers["Authorization"] = f"token {self.token}"
+        self._session: Optional[aiohttp.ClientSession] = None
+
+    async def _get_session(self) -> aiohttp.ClientSession:
+        """Get or create a persistent aiohttp session."""
+        if self._session is None or self._session.closed:
+            connector = aiohttp.TCPConnector(limit=10, limit_per_host=5)
+            self._session = aiohttp.ClientSession(
+                connector=connector, headers=self.headers
+            )
+        return self._session
+
+    async def close(self):
+        """Close the aiohttp session."""
+        if self._session and not self._session.closed:
+            try:
+                await self._session.close()
+                logger.debug("GitHub service session closed")
+            except Exception as e:
+                logger.error(f"Error closing aiohttp session: {e}")
+            finally:
+                self._session = None
 
     async def _request(
         self, method: str, endpoint: str, params: Optional[Dict] = None
     ) -> Optional[Dict]:
-        """Make a request to GitHub API."""
+        """Make a request to GitHub API with retry logic."""
         url = f"{self.base_url}{endpoint}"
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.request(
-                    method, url, headers=self.headers, params=params
-                ) as response:
-                    if response.status == 200:
-                        return await response.json()
-                    elif response.status == 404:
-                        return None
-                    else:
-                        print(f"GitHub API error: {response.status}")
-                        return None
-            except Exception as e:
-                print(f"Request error: {e}")
-                return None
+
+        async def _make_request():
+            session = await self._get_session()
+            async with session.request(
+                method, url, headers=self.headers, params=params
+            ) as response:
+                if response.status == 200:
+                    return await response.json()
+                elif response.status == 404:
+                    logger.debug(f"GitHub API 404: {endpoint}")
+                    return None
+                elif response.status == 429:
+                    # Rate limited - will be retried by retry_with_backoff
+                    retry_after = response.headers.get("Retry-After", "60")
+                    raise aiohttp.ClientResponseError(
+                        request_info=response.request_info,
+                        history=response.history,
+                        status=429,
+                        message=f"Rate limited. Retry after {retry_after}s",
+                    )
+                elif response.status >= 500:
+                    # Server error - will be retried
+                    raise aiohttp.ClientResponseError(
+                        request_info=response.request_info,
+                        history=response.history,
+                        status=response.status,
+                        message=f"Server error: {response.status}",
+                    )
+                else:
+                    logger.warning(f"GitHub API error {response.status}: {endpoint}")
+                    return None
+
+        try:
+            # WORKAROUND: Don't pass exceptions tuple - retry_with_backoff now uses string-based checking
+            # This avoids any NameError when Python evaluates the exceptions tuple
+            return await retry_with_backoff(
+                _make_request,
+                max_retries=3,
+                initial_delay=1.0,
+                max_delay=60.0,
+                backoff_factor=2.0,
+                exceptions=(),  # Empty tuple - not used anymore, string-based checking instead
+                operation_name=f"GitHub API {method} {endpoint}",
+            )
+        except NameError as e:
+            # Ensure asyncio is in scope for exception formatting
+            _ = asyncio  # noqa: F841 - Keep asyncio in scope
+            # Avoid traceback.format_exception which may trigger asyncio NameError
+            error_type = type(e).__name__
+            error_module = getattr(type(e), "__module__", "")
+            error_msg = str(e)
+            if error_module:
+                logger.error(
+                    f"NameError in _request: {error_module}.{error_type}: {error_msg}"
+                )
+            else:
+                logger.error(f"NameError in _request: {error_type}: {error_msg}")
+            raise
+        except Exception as e:
+            # Avoid traceback.format_exception which may trigger asyncio NameError
+            error_type = type(e).__name__
+            error_module = getattr(type(e), "__module__", "")
+            error_msg = str(e)
+            if error_module:
+                logger.error(
+                    f"Unexpected error in _request: {error_module}.{error_type}: {error_msg}"
+                )
+            else:
+                logger.error(f"Unexpected error in _request: {error_type}: {error_msg}")
+            raise
 
     async def get_repo(self, owner: str, repo: str) -> Optional[Dict]:
         """Get repository information."""
@@ -47,14 +134,18 @@ class GitHubService:
         """Get latest release for a repository."""
         return await self._request("GET", f"/repos/{owner}/{repo}/releases/latest")
 
-    async def get_releases(self, owner: str, repo: str, per_page: int = 10) -> List[Dict]:
+    async def get_releases(
+        self, owner: str, repo: str, per_page: int = 10
+    ) -> List[Dict]:
         """Get releases for a repository."""
         result = await self._request(
             "GET", f"/repos/{owner}/{repo}/releases", params={"per_page": per_page}
         )
         return result or []
 
-    async def get_repo_events(self, owner: str, repo: str, per_page: int = 30) -> List[Dict]:
+    async def get_repo_events(
+        self, owner: str, repo: str, per_page: int = 30
+    ) -> List[Dict]:
         """Get repository events (pushes, releases, etc.)."""
         result = await self._request(
             "GET", f"/repos/{owner}/{repo}/events", params={"per_page": per_page}
@@ -75,11 +166,15 @@ class GitHubService:
     async def get_user_repos(self, username: str, per_page: int = 30) -> List[Dict]:
         """Get user's repositories."""
         result = await self._request(
-            "GET", f"/users/{username}/repos", params={"per_page": per_page, "sort": "updated"}
+            "GET",
+            f"/users/{username}/repos",
+            params={"per_page": per_page, "sort": "updated"},
         )
         return result or []
 
-    async def get_repo_commits(self, owner: str, repo: str, sha: Optional[str] = None, per_page: int = 30) -> List[Dict]:
+    async def get_repo_commits(
+        self, owner: str, repo: str, sha: Optional[str] = None, per_page: int = 30
+    ) -> List[Dict]:
         """Get repository commits."""
         endpoint = f"/repos/{owner}/{repo}/commits"
         params = {"per_page": per_page}
@@ -94,8 +189,46 @@ class GitHubService:
         return result is not None
 
     def parse_repo_name(self, repo_input: str) -> tuple[Optional[str], Optional[str]]:
-        """Parse repository name into owner and repo."""
-        parts = repo_input.strip().split("/")
+        """
+        Parse repository name or URL into owner and repo.
+
+        Supports:
+        - owner/repo (e.g., discord/discord.py)
+        - https://github.com/owner/repo
+        - http://github.com/owner/repo
+        - github.com/owner/repo
+        - www.github.com/owner/repo
+        """
+        repo_input = repo_input.strip()
+
+        # Handle GitHub URLs
+        if "github.com" in repo_input:
+            # Remove protocol if present
+            repo_input = repo_input.replace("https://", "").replace("http://", "")
+            # Remove www. if present
+            repo_input = repo_input.replace("www.", "")
+            # Remove github.com/ prefix
+            if repo_input.startswith("github.com/"):
+                repo_input = repo_input[11:]  # Remove "github.com/"
+            elif repo_input.startswith("github.com"):
+                repo_input = repo_input[10:]  # Remove "github.com"
+            # Remove trailing slash
+            repo_input = repo_input.rstrip("/")
+            # Remove .git suffix if present
+            if repo_input.endswith(".git"):
+                repo_input = repo_input[:-4]
+
+        # Parse owner/repo
+        parts = repo_input.split("/")
         if len(parts) == 2:
-            return parts[0], parts[1]
+            owner = parts[0].strip()
+            repo = parts[1].strip()
+            # Remove any query parameters or fragments from repo name
+            if "?" in repo:
+                repo = repo.split("?")[0]
+            if "#" in repo:
+                repo = repo.split("#")[0]
+            if owner and repo:
+                return owner, repo
+
         return None, None

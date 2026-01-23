@@ -1,6 +1,7 @@
 """Contribution tracking service."""
 
-import asyncio
+import asyncio  # Required for exception formatting and asyncio.sleep()
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 
@@ -8,6 +9,8 @@ from discord.ext import tasks
 from utils.data_manager import DataManager
 
 from services.github_service import GitHubService
+
+logger = logging.getLogger(__name__)
 
 
 class ContributionTracker:
@@ -23,11 +26,13 @@ class ContributionTracker:
         """Start tracking contributions."""
         if not self.tracker_task or self.tracker_task.done():
             self.tracker_task = self.update_contributions.start()
+            logger.info("Contribution tracking started")
 
     def stop(self):
         """Stop tracking contributions."""
         if self.tracker_task and not self.tracker_task.done():
             self.tracker_task.cancel()
+            logger.info("Contribution tracking stopped")
 
     async def get_user_contributions(self, username: str) -> Dict:
         """Get contribution statistics for a user."""
@@ -100,15 +105,27 @@ class ContributionTracker:
         else:
             configs = {}
 
+        if not configs:
+            logger.debug("No users configured for contribution tracking")
+            return
+
+        logger.debug(f"Updating contributions for {len(configs)} users")
         for user_id_str, config in configs.items():
+            if not user_id_str or not config:
+                continue
             github_username = config.get("github_username")
-            if github_username:
+            if github_username and isinstance(github_username, str) and github_username.strip():
                 try:
-                    stats = await self.get_user_contributions(github_username)
-                    self.data.save_contributions(int(user_id_str), stats)
+                    user_id = int(user_id_str)
+                    stats = await self.get_user_contributions(github_username.strip())
+                    if stats:
+                        self.data.save_contributions(user_id, stats)
+                        logger.debug(f"Updated contributions for {github_username}")
                     await asyncio.sleep(2)  # Rate limiting
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Invalid user_id format '{user_id_str}': {e}")
                 except Exception as e:
-                    print(f"Error updating contributions for {github_username}: {e}")
+                    logger.error(f"Error updating contributions for {github_username}: {e}", exc_info=True)
 
     @update_contributions.before_loop
     async def before_update_contributions(self):
