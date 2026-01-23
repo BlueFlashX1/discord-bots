@@ -37,6 +37,17 @@ jobs:
               fi
             done
 
+            # Clear Python bytecode cache for Python bots
+            echo "Clearing Python bytecode cache..."
+            find /root/discord-bots -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+            find /root/discord-bots -name "*.pyc" -delete 2>/dev/null || true
+
+            # Force restart Python bots (not just reload) to ensure fresh code
+            echo "Force restarting Python bots..."
+            pm2 delete github-bot 2>/dev/null || true
+            pm2 delete reminder-bot 2>/dev/null || true
+            pm2 delete exercism-bot 2>/dev/null || true
+
             # Reload PM2 with updated ecosystem
             pm2 reload ecosystem.config.js || pm2 restart all
 
