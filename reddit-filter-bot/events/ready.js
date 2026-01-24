@@ -26,23 +26,24 @@ module.exports = {
     }
 
     const rest = new REST().setToken(process.env.DISCORD_TOKEN);
+    const appId = client.user.id;
 
     try {
-      console.log(`Registering ${commands.length} slash command(s)...`);
-
-      if (process.env.GUILD_ID) {
-        await rest.put(
-          Routes.applicationGuildCommands(client.user.id, process.env.GUILD_ID),
-          { body: commands }
-        );
-        console.log(`Registered commands to guild ${process.env.GUILD_ID}`);
-      } else {
-        await rest.put(
-          Routes.applicationCommands(client.user.id),
-          { body: commands }
-        );
-        console.log('Registered commands globally (may take up to 1 hour to appear)');
+      for (const [guildId] of client.guilds.cache) {
+        try {
+          await rest.put(Routes.applicationGuildCommands(appId, guildId), { body: [] });
+        } catch (err) {
+          console.warn(`Could not clear guild ${guildId} commands:`, err.message);
+        }
       }
+      if (client.guilds.cache.size > 0) {
+        console.log('Cleared guild-specific commands (avoids duplicates with global).');
+      }
+
+      console.log(`Registering ${commands.length} slash command(s) globally...`);
+      await rest.put(Routes.applicationCommands(appId), { body: commands });
+      console.log('Registered commands globally.');
+      console.log('Commands will be available in all servers after a few minutes.');
     } catch (error) {
       console.error('Error registering commands:', error);
     }
