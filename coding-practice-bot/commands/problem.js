@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -65,7 +65,7 @@ module.exports = {
           (problem.category ? `**Category:** ${problem.category}\n` : '') +
           `\n[View Problem](${problem.url})\n\n` +
           `**How to submit:**\n` +
-          `1. Type your solution in a code block: \\`\\`\\`python\n# your code\n\\`\\`\\`\n` +
+            `1. Type your solution in a code block: \`\`\`python\n# your code\n\`\`\`\n` +
           `2. Or attach a .py file\n` +
           `3. Use /submit to validate your solution`
       )
@@ -86,19 +86,60 @@ module.exports = {
     }
 
     if (problem.description) {
-      // Clean up markdown for Discord (remove code blocks that might break formatting)
-      let cleanDescription = problem.description
-        .replace(/```[\s\S]*?```/g, '[Code Block]') // Replace code blocks
-        .substring(0, 1000);
-      if (problem.description.length > 1000) {
+      // Clean up markdown for Discord
+      let cleanDescription = problem.description;
+      
+      // Remove Codewars conditional blocks (keep only Python-compatible content)
+      // Pattern: ~+if[-not]:[languages]\n[content]\n~
+      if (problem.source === 'codewars') {
+        // Remove all conditional blocks (they're language-specific and cause strikethrough)
+        // Match: ~+if[-not]:[condition]\n[content]\n~
+        cleanDescription = cleanDescription
+          // Remove conditional blocks: ~if[-not]:condition\ncontent\n~
+          .replace(/~+if[^~\n]*\n[\s\S]*?\n~/g, '')
+          // Remove any remaining standalone tildes that cause strikethrough
+          .replace(/^~+|~+$/gm, '') // Remove leading/trailing tildes on lines
+          .replace(/\n~+\n/g, '\n') // Remove lines with only tildes
+          .replace(/~+/g, '') // Remove any remaining tildes
+          // Clean up multiple newlines
+          .replace(/\n{3,}/g, '\n\n');
+      }
+      
+      // Remove code blocks (replace with placeholder)
+      cleanDescription = cleanDescription.replace(/```[\s\S]*?```/g, '[Code Block]');
+      
+      // Remove inline code backticks that might break formatting
+      cleanDescription = cleanDescription.replace(/`([^`]+)`/g, '$1');
+      
+      // Trim and limit length
+      cleanDescription = cleanDescription.trim();
+      const originalLength = cleanDescription.length;
+      cleanDescription = cleanDescription.substring(0, 1000);
+      if (originalLength > 1000) {
         cleanDescription += '...';
       }
+      
       embed.addFields({
         name: '📝 Description',
-        value: cleanDescription,
+        value: cleanDescription || 'No description available',
       });
     }
 
-    await interaction.editReply({ embeds: [embed] });
+    // Add download button for Codewars problems
+    const components = [];
+    if (problem.source === 'codewars') {
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`download_${problem.id}_${interaction.user.id}`)
+          .setLabel('📥 Download Starter File')
+          .setStyle(ButtonStyle.Primary)
+      );
+      components.push(row);
+    }
+
+    await interaction.editReply({ 
+      embeds: [embed],
+      components: components.length > 0 ? components : undefined,
+    });
   },
 };

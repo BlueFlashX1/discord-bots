@@ -8,7 +8,15 @@ const commands = [];
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter((file) => file.endsWith('.js'));
 
+// Exclude test/admin commands from deployment
+const excludedCommands = ['test-post.js'];
+
 for (const file of commandFiles) {
+  if (excludedCommands.includes(file)) {
+    console.log(`[SKIP] Excluding ${file} from deployment`);
+    continue;
+  }
+
   const filePath = path.join(commandsPath, file);
   const command = require(filePath);
   if ('data' in command && 'execute' in command) {
@@ -26,12 +34,14 @@ const rest = new REST().setToken(process.env.DISCORD_BOT_TOKEN || process.env.DI
   try {
     console.log(`Started refreshing ${commands.length} application (/) commands.`);
 
+    // Deploy globally (available in all servers)
     const data = await rest.put(
-      Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
+      Routes.applicationCommands(process.env.CLIENT_ID),
       { body: commands }
     );
 
-    console.log(`Successfully reloaded ${data.length} application (/) commands.`);
+    console.log(`Successfully reloaded ${data.length} application (/) commands globally.`);
+    console.log('Commands will be available in all servers after a few minutes.');
   } catch (error) {
     console.error(error);
   }

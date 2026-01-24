@@ -106,6 +106,17 @@ module.exports = {
       // Mark as solved
       progressService.markSolved(interaction.user.id, currentProblem.id, currentProblem.difficulty);
 
+      // Save solution to file if Codewars problem
+      if (currentProblem.source === 'codewars') {
+        try {
+          const fileGenerator = interaction.client.fileGenerator;
+          fileGenerator.saveSolution(currentProblem, code);
+        } catch (error) {
+          console.error('Error saving solution to file:', error);
+          // Don't fail the submission if file save fails
+        }
+      }
+
       // Archive successful submission (messageId will be updated after reply)
       const submissionArchive = interaction.client.submissionArchive;
       submissionArchive.archiveSubmission(
