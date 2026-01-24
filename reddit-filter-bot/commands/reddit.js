@@ -30,7 +30,8 @@ module.exports = {
         .addChannelOption((opt) =>
           opt
             .setName('channel')
-            .setDescription('Channel to post matches')
+            .setDescription('Channel to post matches (autocomplete with #)')
+            .setRequired(true)
             .addChannelTypes(ChannelType.GuildText)
         )
     )
@@ -47,24 +48,25 @@ module.exports = {
         )
     )
     .addSubcommand((sub) => sub.setName('list').setDescription('List all monitored subreddits'))
-    .addSubcommand((sub) =>
-      sub
-        .setName('keywords')
-        .setDescription('Set keywords for a subreddit (comma-separated, or "all" for all posts)')
-        .addStringOption((opt) =>
-          opt
-            .setName('subreddit')
-            .setDescription('Subreddit name')
-            .setRequired(true)
-            .setAutocomplete(true)
-        )
-        .addStringOption((opt) =>
-          opt
-            .setName('keywords')
-            .setDescription('Keywords (comma-separated) or "all" for all posts')
-            .setRequired(true)
-        )
-    )
+    // DEPRECATED: Use /filter command instead (supports both include and exclude keywords)
+    // .addSubcommand((sub) =>
+    //   sub
+    //     .setName('keywords')
+    //     .setDescription('Set include keywords only (legacy - use /filter for include + exclude)')
+    //     .addStringOption((opt) =>
+    //       opt
+    //         .setName('subreddit')
+    //         .setDescription('Subreddit name')
+    //         .setRequired(true)
+    //         .setAutocomplete(true)
+    //     )
+    //     .addStringOption((opt) =>
+    //       opt
+    //         .setName('keywords')
+    //         .setDescription('Keywords to watch for (comma-separated) or "all" for all posts')
+    //         .setRequired(true)
+    //     )
+    // )
     .addSubcommand((sub) =>
       sub
         .setName('channel')
@@ -149,9 +151,10 @@ module.exports = {
       case 'list':
         await handleList(interaction);
         break;
-      case 'keywords':
-        await handleKeywords(interaction);
-        break;
+      // DEPRECATED: Use /filter command instead
+      // case 'keywords':
+      //   await handleKeywords(interaction);
+      //   break;
       case 'channel':
         await handleChannel(interaction);
         break;
@@ -176,7 +179,7 @@ module.exports = {
 
 async function handleAdd(interaction) {
   const name = interaction.options.getString('subreddit').replace(/^r\//, '');
-  const channel = interaction.options.getChannel('channel');
+  const channel = interaction.options.getChannel('channel'); // Now required
 
   await interaction.deferReply();
 
@@ -195,7 +198,7 @@ async function handleAdd(interaction) {
   // Add subreddit
   const result = configManager.addSubreddit(verification.name, {
     keywords: [],
-    channel_id: channel?.id,
+    channel_id: channel.id, // Channel is now required
     min_score: 0,
   });
 
@@ -217,7 +220,7 @@ async function handleAdd(interaction) {
         value: verification.subscribers?.toLocaleString() || 'N/A',
         inline: true,
       },
-      { name: 'Channel', value: channel ? `<#${channel.id}>` : 'Default channel', inline: true },
+      { name: 'Channel', value: `<#${channel.id}>`, inline: true },
       { name: 'Keywords', value: 'All posts (use `/reddit keywords` to filter)', inline: false }
     )
     .setFooter({ text: 'Tip: Use /reddit keywords to filter specific topics' });
@@ -251,9 +254,11 @@ async function handleList(interaction) {
   const lines = subreddits.map((name) => {
     const config = configManager.getSubredditConfig(name);
     const status = config.enabled ? '🟢' : '🔴';
-    const keywords =
-      config.keywords.length > 0 ? `${config.keywords.length} keywords` : 'all posts';
-    return `${status} **r/${name}** → <#${config.channel_id}> (${keywords})`;
+    const includeInfo =
+      config.keywords && config.keywords.length > 0 ? `${config.keywords.length} include` : 'all posts';
+    const excludeInfo =
+      config.excludeKeywords && config.excludeKeywords.length > 0 ? `, ${config.excludeKeywords.length} exclude` : '';
+    return `${status} **r/${name}** → <#${config.channel_id}> (${includeInfo}${excludeInfo})`;
   });
 
   const embed = new EmbedBuilder()
@@ -265,49 +270,50 @@ async function handleList(interaction) {
   await interaction.reply({ embeds: [embed] });
 }
 
-async function handleKeywords(interaction) {
-  const subreddit = interaction.options.getString('subreddit');
-  const keywordsInput = interaction.options.getString('keywords');
-
-  const subConfig = configManager.getSubredditConfig(subreddit);
-  if (!subConfig) {
-    const embed = new EmbedBuilder()
-      .setTitle('Not Found')
-      .setDescription(
-        `**r/${subreddit}** is not being monitored. Add it first with \`/reddit add ${subreddit}\``
-      )
-      .setColor(0xe74c3c);
-    return interaction.reply({ embeds: [embed] });
-  }
-
-  // Handle "all" to clear keywords
-  if (keywordsInput.toLowerCase() === 'all') {
-    configManager.setKeywords(subreddit, []);
-    const embed = new EmbedBuilder()
-      .setTitle('Keywords Cleared')
-      .setDescription(`**r/${subreddit}** will now show **all posts**`)
-      .setColor(0x2ecc71);
-    return interaction.reply({ embeds: [embed] });
-  }
-
-  // Parse keywords
-  const keywords = keywordsInput
-    .split(',')
-    .map((k) => k.trim())
-    .filter((k) => k);
-
-  configManager.setKeywords(subreddit, keywords);
-
-  const embed = new EmbedBuilder()
-    .setTitle('Keywords Updated')
-    .setDescription(
-      `**r/${subreddit}** keywords set to:\n${keywords.map((k) => `• ${k}`).join('\n')}`
-    )
-    .setColor(0x2ecc71)
-    .setFooter({ text: 'Posts matching ANY of these keywords will be shown' });
-
-  await interaction.reply({ embeds: [embed] });
-}
+// DEPRECATED: Use /filter command instead (supports both include and exclude keywords)
+// async function handleKeywords(interaction) {
+//   const subreddit = interaction.options.getString('subreddit');
+//   const keywordsInput = interaction.options.getString('keywords');
+//
+//   const subConfig = configManager.getSubredditConfig(subreddit);
+//   if (!subConfig) {
+//     const embed = new EmbedBuilder()
+//       .setTitle('Not Found')
+//       .setDescription(
+//         `**r/${subreddit}** is not being monitored. Add it first with \`/reddit add ${subreddit}\``
+//       )
+//       .setColor(0xe74c3c);
+//     return interaction.reply({ embeds: [embed] });
+//   }
+//
+//   // Handle "all" to clear keywords
+//   if (keywordsInput.toLowerCase() === 'all') {
+//     configManager.setKeywords(subreddit, []);
+//     const embed = new EmbedBuilder()
+//       .setTitle('Keywords Cleared')
+//       .setDescription(`**r/${subreddit}** will now show **all posts**`)
+//       .setColor(0x2ecc71);
+//     return interaction.reply({ embeds: [embed] });
+//   }
+//
+//   // Parse keywords
+//   const keywords = keywordsInput
+//     .split(',')
+//     .map((k) => k.trim())
+//     .filter((k) => k);
+//
+//   configManager.setKeywords(subreddit, keywords);
+//
+//   const embed = new EmbedBuilder()
+//     .setTitle('Keywords Updated')
+//     .setDescription(
+//       `**r/${subreddit}** keywords set to:\n${keywords.map((k) => `• ${k}`).join('\n')}`
+//     )
+//     .setColor(0x2ecc71)
+//     .setFooter({ text: 'Posts matching ANY of these keywords will be shown' });
+//
+//   await interaction.reply({ embeds: [embed] });
+// }
 
 async function handleChannel(interaction) {
   const subreddit = interaction.options.getString('subreddit');
