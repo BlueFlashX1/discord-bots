@@ -1,6 +1,5 @@
 """GitHub API service."""
 
-import asyncio  # noqa: F401 - Required for exception type resolution
 import logging
 import os
 from typing import Dict, List, Optional
@@ -100,30 +99,10 @@ class GitHubService:
                 operation_name=f"GitHub API {method} {endpoint}",
             )
         except NameError as e:
-            # Ensure asyncio is in scope for exception formatting
-            _ = asyncio  # noqa: F841 - Keep asyncio in scope
-            # Avoid traceback.format_exception which may trigger asyncio NameError
-            error_type = type(e).__name__
-            error_module = getattr(type(e), "__module__", "")
-            error_msg = str(e)
-            if error_module:
-                logger.error(
-                    f"NameError in _request: {error_module}.{error_type}: {error_msg}"
-                )
-            else:
-                logger.error(f"NameError in _request: {error_type}: {error_msg}")
+            logger.error(f"NameError in _request: {type(e).__name__}: {e}")
             raise
         except Exception as e:
-            # Avoid traceback.format_exception which may trigger asyncio NameError
-            error_type = type(e).__name__
-            error_module = getattr(type(e), "__module__", "")
-            error_msg = str(e)
-            if error_module:
-                logger.error(
-                    f"Unexpected error in _request: {error_module}.{error_type}: {error_msg}"
-                )
-            else:
-                logger.error(f"Unexpected error in _request: {error_type}: {error_msg}")
+            logger.error(f"Unexpected error in _request: {type(e).__name__}: {e}")
             raise
 
     async def get_repo(self, owner: str, repo: str) -> Optional[Dict]:

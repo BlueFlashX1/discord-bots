@@ -1,6 +1,5 @@
 """Contribution stats command."""
 
-import asyncio  # noqa: F401 - Required for exception type resolution
 import logging
 
 from discord.ext import commands
@@ -36,24 +35,10 @@ class StatsCommand(commands.Cog):
     )
     async def stats(self, interaction: discord.Interaction, username: str = None):
         """Get contribution statistics."""
-        import sys
-
-        print(
-            f"[DEBUG] /stats command invoked at {__import__('datetime').datetime.now()}",
-            file=sys.stderr,
-            flush=True,
-        )
-
         try:
             await interaction.response.defer()
-            print("[DEBUG] defer() succeeded", file=sys.stderr, flush=True)
-        except Exception as defer_err:
-            print(
-                f"[DEBUG] defer() FAILED: {type(defer_err).__name__}: {defer_err}",
-                file=sys.stderr,
-                flush=True,
-            )
-            raise  # Re-raise to let discord.py handle it
+        except Exception:
+            raise
 
         # Get username
         if not username:
@@ -79,36 +64,17 @@ class StatsCommand(commands.Cog):
             await interaction.followup.send(embed=embed)
 
         except Exception as e:
-            # EXPLICIT DEBUG: Print to stdout to ensure it shows in logs
-            import sys
-
-            print(
-                f"[DEBUG STATS] Exception caught: {type(e).__name__}: {e}",
-                file=sys.stderr,
-                flush=True,
-            )
-
-            # Ensure asyncio is in scope for exception formatting
-            _ = asyncio  # noqa: F841 - Keep asyncio in scope for exception type resolution
-            # Avoid traceback.format_exception which may trigger asyncio NameError
-            # when formatting asyncio exception types
             error_type = type(e).__name__
             error_module = getattr(type(e), "__module__", "")
             error_msg = str(e)
-
             if error_module:
                 error_details = f"{error_module}.{error_type}: {error_msg}"
             else:
                 error_details = f"{error_type}: {error_msg}"
-
-            print(
-                f"[DEBUG STATS] Sending error embed: {error_msg}",
-                file=sys.stderr,
-                flush=True,
-            )
             logger.error(f"Error fetching stats: {error_details}")
 
-            embed = create_error_embed(f"Error fetching stats: {error_msg}")
+            user_msg = error_msg if "asyncio" not in error_msg.lower() else "A temporary error occurred. Please try again."
+            embed = create_error_embed(f"Error fetching stats: {user_msg}")
             await interaction.followup.send(embed=embed)
 
     async def _get_stats_fallback(self, username: str):

@@ -1,6 +1,6 @@
 # GitHub Bot AsyncIO Error - Root Cause Analysis & Fix
 
-**Date:** January 22, 2026  
+**Date:** January 22, 2026 (deployment fix); January 24, 2026 (code fix)  
 **Duration:** Extended debugging session  
 **Severity:** Critical - Bot completely non-functional  
 **Status:** RESOLVED
@@ -11,9 +11,11 @@
 
 ```
 Error fetching stats: name 'asyncio' is not defined
+Error fetching activity: name 'asyncio' is not defined
+Error updating contributions for <username>: name 'asyncio' is not defined
 ```
 
-This error appeared when users ran `/stats` command in Discord. The bot responded but failed to fetch GitHub data.
+These errors appeared when users ran `/stats` or `/activity` in Discord, or when the hourly contribution tracker ran in the background.
 
 ---
 
@@ -187,6 +189,12 @@ pm2 list
 ```
 If a bot isn't in the list, it's not running!
 
+### 6. If "asyncio is not defined" returns after deployment fixes
+- Ensure **no** `_ = asyncio` in exception handlers.
+- Use **local** `import asyncio as _aio` at the use site for `asyncio.sleep` (e.g. in `contribution_tracker`, `retry`).
+- Avoid `exc_info=True` when logging contribution update errors.
+- See "January 2026 – Code-level fix" above.
+
 ---
 
 ## Debugging Commands
@@ -221,18 +229,20 @@ git diff HEAD -- ecosystem.config.js
 
 ## Timeline
 
-1. **Initial Error:** `NameError: name 'asyncio' is not defined`
-2. **First Attempt:** Added `import asyncio` to files - didn't help
-3. **Second Attempt:** Cleared `__pycache__` on VPS - didn't help
-4. **Discovery 1:** Found `git pull` failing due to local changes on VPS
-5. **Fix 1:** Changed to `git reset --hard origin/main`
-6. **Still Broken:** Bot still not working
-7. **Discovery 2:** PM2 reload not starting deleted bots
-8. **Fix 2:** Changed to `pm2 delete all && pm2 start ecosystem.config.js`
-9. **Still Broken:** github-bot not in PM2 list
-10. **Discovery 3:** `ecosystem.config.js` never committed (234 lines of changes)
-11. **Fix 3:** Committed and pushed ecosystem.config.js
-12. **RESOLVED:** github-bot now running and `/stats` works!
+**Jan 22, 2026 (deployment):**
+1. Initial error: `NameError: name 'asyncio' is not defined`
+2. Added `import asyncio` to files – didn't help
+3. Cleared `__pycache__` on VPS – didn't help
+4. Discovery 1: `git pull` failing due to local changes on VPS → Fix: `git reset --hard origin/main`
+5. Discovery 2: PM2 reload not starting deleted bots → Fix: `pm2 delete all && pm2 start ecosystem.config.js`
+6. Discovery 3: `ecosystem.config.js` never committed → Fix: committed and pushed
+7. RESOLVED (deployment): github-bot running, `/stats` working
+
+**Jan 24, 2026 (recurrence, code fix):**
+8. Error returned: `/stats`, `/activity`, and "Error updating contributions" again showed "asyncio is not defined"
+9. Root cause: `_ = asyncio` in exception handlers, `exc_info=True` in contribution tracker, asyncio use in task/retry contexts
+10. Fix: Removed `_ = asyncio`, local `import asyncio as _aio` at use site, no `exc_info=True`, generic user message when asyncio in error
+11. RESOLVED (code): github-bot stable, `/stats` and `/activity` working
 
 ---
 
@@ -242,7 +252,7 @@ Before deploying Python bots:
 
 - [ ] All code changes committed (`git status`)
 - [ ] `ecosystem.config.js` changes committed
-- [ ] `import asyncio` present in files using async functions
+- [ ] No `_ = asyncio` in exception handlers; use local `import asyncio as _aio` at use site for `asyncio.sleep` where needed
 - [ ] VPS has no local modifications (use `git reset --hard`)
 - [ ] PM2 uses `start` not `reload` after deleting processes
 - [ ] Check `pm2 list` shows bot as "online"
@@ -252,16 +262,57 @@ Before deploying Python bots:
 
 ## Files Modified
 
-1. `/discord/bots/.github/workflows/deploy.yml` - Deployment workflow
-2. `/discord/bots/ecosystem.config.js` - PM2 configuration (finally committed!)
+**Deployment (Jan 22):**
+- `.github/workflows/deploy.yml` – Deployment workflow
+- `ecosystem.config.js` – PM2 configuration
+
+**Code fix (Jan 24):** See "January 2026 – Code-level fix" section for the list of github-bot files.
+
+---
+
+## January 2026 – Code-level fix (recurrence)
+
+The error recurred after deployment fixes were in place. The root cause was **code**, not deployment:
+
+### What was wrong
+
+1. **Exception handlers** in stats, activity, github_service, track, setusername used `_ = asyncio` to "keep asyncio in scope." In some run contexts this reference itself caused `NameError`, which was then caught and shown to users.
+
+2. **Contribution tracker** used `logger.error(..., exc_info=True)`. Formatting the traceback could resolve asyncio-related exception types and trigger the same `NameError`.
+
+3. **asyncio.sleep** in the contribution loop and in `retry_with_backoff` relied on module-level `import asyncio`. In task/loop contexts, a local import at the use site is more reliable.
+
+### Fixes applied (Jan 24, 2026)
+
+- **Removed all `_ = asyncio`** from exception handlers in:
+  - `commands/stats.py`, `commands/activity.py`, `commands/track.py`, `commands/setusername.py`
+  - `services/github_service.py`
+- **Stopped using `exc_info=True`** in `contribution_tracker` when logging contribution update errors.
+- **User-facing errors:** If the exception message contains `"asyncio"`, we now show  
+  `"A temporary error occurred. Please try again."` instead of the raw `NameError` text.
+- **Local asyncio import at use site:**
+  - In `contribution_tracker.update_contributions`: `import asyncio as _aio` at start of try block, then `await _aio.sleep(2)`.
+  - In `utils/retry.retry_with_backoff`: `import asyncio as _aio` immediately before `await _aio.sleep(delay)`.
+- **Removed** the debug print block from the stats command.
+
+### Files modified (code fix)
+
+- `github-bot/commands/stats.py`
+- `github-bot/commands/activity.py`
+- `github-bot/commands/track.py`
+- `github-bot/commands/setusername.py`
+- `github-bot/services/github_service.py`
+- `github-bot/services/contribution_tracker.py`
+- `github-bot/utils/retry.py`
 
 ---
 
 ## Related Files
 
-- `/discord/bots/github-bot/services/github_service.py` - Has `import asyncio`
-- `/discord/bots/github-bot/utils/retry.py` - Has `import asyncio`
-- `/discord/bots/github-bot/bot.py` - Main bot file
+- `github-bot/services/github_service.py` – GitHub API + retry
+- `github-bot/utils/retry.py` – retry with backoff, uses `asyncio.sleep`
+- `github-bot/services/contribution_tracker.py` – hourly updates, uses `asyncio.sleep`
+- `github-bot/bot.py` – main entry, `asyncio.run(main())`
 
 ---
 

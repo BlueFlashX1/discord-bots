@@ -1,7 +1,5 @@
 """Set GitHub username command."""
 
-import asyncio  # noqa: F401 - Required for exception type resolution
-
 from discord.ext import commands
 from services.github_service import GitHubService
 from utils.data_manager import DataManager
