@@ -116,16 +116,17 @@ class ContributionTracker:
             github_username = config.get("github_username")
             if github_username and isinstance(github_username, str) and github_username.strip():
                 try:
+                    import asyncio as _aio
                     user_id = int(user_id_str)
                     stats = await self.get_user_contributions(github_username.strip())
                     if stats:
                         self.data.save_contributions(user_id, stats)
-                        logger.debug(f"Updated contributions for {github_username}")
-                    await asyncio.sleep(2)  # Rate limiting
+                    logger.debug(f"Updated contributions for {github_username}")
+                    await _aio.sleep(2)  # Rate limiting
                 except (ValueError, TypeError) as e:
                     logger.warning(f"Invalid user_id format '{user_id_str}': {e}")
                 except Exception as e:
-                    logger.error(f"Error updating contributions for {github_username}: {e}", exc_info=True)
+                    logger.error(f"Error updating contributions for {github_username}: {type(e).__name__}: {e}")
 
     @update_contributions.before_loop
     async def before_update_contributions(self):

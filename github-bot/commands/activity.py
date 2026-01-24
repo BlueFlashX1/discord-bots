@@ -1,7 +1,5 @@
 """Recent activity command."""
 
-import asyncio  # Required for exception formatting (asyncio.TimeoutError, etc.)
-
 from discord.ext import commands
 from services.github_service import GitHubService
 from utils.data_manager import DataManager
@@ -51,9 +49,9 @@ class ActivityCommand(commands.Cog):
             await interaction.followup.send(embed=embed)
 
         except Exception as e:
-            # Ensure asyncio is in scope for exception formatting
-            _ = asyncio  # Keep asyncio in scope
-            embed = create_error_embed(f"Error fetching activity: {str(e)}")
+            error_msg = str(e)
+            user_msg = error_msg if "asyncio" not in error_msg.lower() else "A temporary error occurred. Please try again."
+            embed = create_error_embed(f"Error fetching activity: {user_msg}")
             await interaction.followup.send(embed=embed)
 
 

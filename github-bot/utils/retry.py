@@ -72,7 +72,8 @@ async def retry_with_backoff(
                 logger.warning(
                     f"{operation_name} failed (attempt {attempt + 1}/{max_retries + 1}): {e}. Retrying in {delay:.1f}s..."
                 )
-                await asyncio.sleep(delay)
+                import asyncio as _aio
+                await _aio.sleep(delay)
                 delay = min(delay * backoff_factor, max_delay)
             else:
                 # Not a retryable exception, re-raise

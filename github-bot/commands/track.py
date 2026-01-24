@@ -1,7 +1,5 @@
 """Track repository command."""
 
-import asyncio  # Required for exception formatting (asyncio.TimeoutError, etc.)
-
 from discord.ext import commands
 from services.github_service import GitHubService
 from utils.data_manager import DataManager
@@ -94,9 +92,6 @@ class TrackCommand(commands.Cog):
             value=f"Channel: {target_channel.mention}",
             inline=False,
         )
-
-        # Ensure asyncio is in scope for exception formatting (if exceptions occur)
-        _ = asyncio  # Keep asyncio in scope
 
         await interaction.followup.send(embed=embed)
 
