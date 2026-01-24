@@ -1,5 +1,7 @@
 const cron = require('node-cron');
 const { EmbedBuilder } = require('discord.js');
+const Logger = require('../../utils/logger');
+const { retryDiscordAPI } = require('../../utils/retry');
 
 class ProblemAutoPoster {
   constructor(client, problemService, progressService, userPreferences, codewarsProgress) {
@@ -10,6 +12,7 @@ class ProblemAutoPoster {
     this.codewarsProgress = codewarsProgress;
     this.cronJob = null;
     this.isRunning = false;
+    this.logger = new Logger('problem-auto-poster');
   }
 
   /**
@@ -23,7 +26,7 @@ class ProblemAutoPoster {
         channel = await this.client.channels.fetch(channelId);
       }
       if (!channel) {
-        console.error(`Channel ${channelId} not found for user ${userId}`);
+        this.logger.error(`Channel ${channelId} not found for user ${userId}`);
         return;
       }
 
@@ -31,7 +34,7 @@ class ProblemAutoPoster {
       const problem = await this.problemService.getRandomProblem(difficulty, source === 'random' ? null : source);
 
       if (!problem) {
-        console.error(`Failed to fetch problem for user ${userId}`);
+        this.logger.error(`Failed to fetch problem for user ${userId}`);
         return;
       }
 
@@ -58,7 +61,7 @@ class ProblemAutoPoster {
             (problem.category ? `**Category:** ${problem.category}\n` : '') +
             `\n[View Problem](${problem.url})\n\n` +
             `**How to submit:**\n` +
-            `1. Type your solution in a code block: \\`\\`\\`python\n# your code\n\\`\\`\\`\n` +
+            `1. Type your solution in a code block: \`\`\`python\n# your code\n\`\`\`\n` +
             `2. Or attach a .py file\n` +
             `3. Use /submit to validate your solution`
         )
@@ -79,22 +82,59 @@ class ProblemAutoPoster {
       }
 
       if (problem.description) {
-        let cleanDescription = problem.description
-          .replace(/```[\s\S]*?```/g, '[Code Block]')
-          .substring(0, 1000);
-        if (problem.description.length > 1000) {
+        // Clean up markdown for Discord
+        let cleanDescription = problem.description;
+        
+        // Remove Codewars conditional blocks (keep only Python-compatible content)
+        // Pattern: ~+if[-not]:[languages]\n[content]\n~
+        if (problem.source === 'codewars') {
+          // Remove all conditional blocks (they're language-specific and cause strikethrough)
+          // Match: ~+if[-not]:condition\ncontent\n~
+          cleanDescription = cleanDescription
+            // Remove conditional blocks: ~if[-not]:condition\ncontent\n~
+            .replace(/~+if[^~\n]*\n[\s\S]*?\n~/g, '')
+            // Remove any remaining standalone tildes that cause strikethrough
+            .replace(/^~+|~+$/gm, '') // Remove leading/trailing tildes on lines
+            .replace(/\n~+\n/g, '\n') // Remove lines with only tildes
+            .replace(/~+/g, '') // Remove any remaining tildes
+            // Clean up multiple newlines
+            .replace(/\n{3,}/g, '\n\n');
+        }
+        
+        // Remove code blocks (replace with placeholder)
+        cleanDescription = cleanDescription.replace(/```[\s\S]*?```/g, '[Code Block]');
+        
+        // Remove inline code backticks that might break formatting
+        cleanDescription = cleanDescription.replace(/`([^`]+)`/g, '$1');
+        
+        // Trim and limit length
+        cleanDescription = cleanDescription.trim();
+        const originalLength = cleanDescription.length;
+        cleanDescription = cleanDescription.substring(0, 1000);
+        if (originalLength > 1000) {
           cleanDescription += '...';
         }
+        
         embed.addFields({
           name: '📝 Description',
-          value: cleanDescription,
+          value: cleanDescription || 'No description available',
         });
       }
 
-      await channel.send({ embeds: [embed] });
-      console.log(`Auto-posted problem ${problem.id} to channel ${channelId} for user ${userId}`);
+      await retryDiscordAPI(
+        () => channel.send({ embeds: [embed] }),
+        {
+          operationName: 'Auto-post problem',
+          logger: this.logger,
+        }
+      );
+      this.logger.info(`Auto-posted problem ${problem.id} to channel ${channelId} for user ${userId}`);
     } catch (error) {
-      console.error(`Error auto-posting problem for user ${userId}:`, error.message);
+      this.logger.error(`Error auto-posting problem for user ${userId}`, error, {
+        channelId,
+        difficulty,
+        source,
+      });
     }
   }
 
@@ -103,7 +143,7 @@ class ProblemAutoPoster {
    */
   async checkAndPost() {
     if (this.isRunning) {
-      console.log('Auto-poster is already running, skipping...');
+      this.logger.debug('Auto-poster is already running, skipping...');
       return;
     }
 
@@ -111,12 +151,12 @@ class ProblemAutoPoster {
     const autoPostUsers = this.userPreferences.getAllAutoPostUsers();
 
     if (autoPostUsers.length === 0) {
-      console.log('No users with auto-post enabled');
+      this.logger.debug('No users with auto-post enabled');
       this.isRunning = false;
       return;
     }
 
-    console.log(`Auto-posting problems for ${autoPostUsers.length} user(s)...`);
+    this.logger.info(`Auto-posting problems for ${autoPostUsers.length} user(s)...`);
 
     for (const user of autoPostUsers) {
       try {
@@ -128,12 +168,12 @@ class ProblemAutoPoster {
             // Use recommended difficulty if available
             if (mastery.recommendation) {
               user.difficulty = mastery.recommendation.recommended;
-              console.log(
+              this.logger.debug(
                 `User ${user.userId}: Recommended difficulty ${user.difficulty} (${mastery.recommendation.reason})`
               );
             }
           } catch (error) {
-            console.error(`Error checking mastery for user ${user.userId}:`, error.message);
+            this.logger.warn(`Error checking mastery for user ${user.userId}`, error);
             // Continue with user's preferred difficulty
           }
         }
@@ -144,7 +184,7 @@ class ProblemAutoPoster {
         // Discord allows 5 messages per 5 seconds per channel
         await new Promise((resolve) => setTimeout(resolve, 1200)); // 1.2s delay = ~5 per 6s (safe)
       } catch (error) {
-        console.error(`Error processing auto-post for user ${user.userId}:`, error.message);
+        this.logger.error(`Error processing auto-post for user ${user.userId}`, error);
       }
     }
 
@@ -156,7 +196,7 @@ class ProblemAutoPoster {
    */
   start(intervalHours = 24) {
     if (this.cronJob) {
-      console.log('Auto-poster is already running');
+      this.logger.warn('Auto-poster is already running');
       return;
     }
 
@@ -169,11 +209,11 @@ class ProblemAutoPoster {
       // Post every N hours
       cronExpression = `0 */${intervalHours} * * *`;
     } else {
-      console.warn(`Invalid interval ${intervalHours}, defaulting to 24 hours`);
+      this.logger.warn(`Invalid interval ${intervalHours}, defaulting to 24 hours`);
       cronExpression = '0 9 * * *';
     }
 
-    console.log(`Starting problem auto-poster (interval: ${intervalHours} hours, cron: ${cronExpression})`);
+    this.logger.info(`Starting problem auto-poster (interval: ${intervalHours} hours, cron: ${cronExpression})`);
 
     // Don't post immediately - wait for first scheduled time
     // Schedule recurring posts
@@ -196,7 +236,7 @@ class ProblemAutoPoster {
     if (this.cronJob) {
       this.cronJob.stop();
       this.cronJob = null;
-      console.log('Problem auto-poster stopped');
+      this.logger.info('Problem auto-poster stopped');
     }
   }
 

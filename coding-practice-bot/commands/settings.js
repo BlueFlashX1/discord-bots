@@ -67,11 +67,11 @@ module.exports = {
         )
     )
     .addSubcommand((subcommand) =>
-      subcommand.setName('view').setDescription('View your current settings')
+      subcommand.setName('view').setDescription('View your settings, stats, and mastery progress')
     ),
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: 64 }); // MessageFlags.Ephemeral = 64
 
     const userPreferences = interaction.client.userPreferences;
     const subcommand = interaction.options.getSubcommand();

@@ -9,6 +9,24 @@ const SubmissionArchive = require('./services/submissionArchive');
 const UserPreferences = require('./services/userPreferences');
 const CodewarsProgress = require('./services/codewarsProgress');
 const ProblemAutoPoster = require('./services/problemAutoPoster');
+const FileGenerator = require('./services/fileGenerator');
+const Logger = require('../utils/logger');
+const { validateEnv, validators } = require('../utils/envValidator');
+
+// Initialize logger
+const logger = new Logger('coding-practice-bot');
+
+// Validate environment variables
+try {
+  const token = process.env.DISCORD_BOT_TOKEN || process.env.DISCORD_TOKEN;
+  if (!token || !validators.discordToken(token)) {
+    logger.error('DISCORD_TOKEN or DISCORD_BOT_TOKEN is required and must be a valid Discord bot token');
+    process.exit(1);
+  }
+} catch (error) {
+  logger.error('Environment validation failed', error);
+  process.exit(1);
+}
 
 const client = new Client({
   intents: [
@@ -27,6 +45,7 @@ const codeValidator = new CodeValidator();
 const submissionArchive = new SubmissionArchive();
 const userPreferences = new UserPreferences();
 const codewarsProgress = new CodewarsProgress();
+const fileGenerator = new FileGenerator();
 const problemAutoPoster = new ProblemAutoPoster(
   client,
   problemService,
@@ -42,6 +61,7 @@ client.codeValidator = codeValidator;
 client.submissionArchive = submissionArchive;
 client.userPreferences = userPreferences;
 client.codewarsProgress = codewarsProgress;
+client.fileGenerator = fileGenerator;
 client.problemAutoPoster = problemAutoPoster;
 
 // Load commands
@@ -55,9 +75,9 @@ if (fs.existsSync(commandsPath)) {
 
     if ('data' in command && 'execute' in command) {
       client.commands.set(command.data.name, command);
-      console.log(`Loaded command: ${command.data.name}`);
+      logger.debug(`Loaded command: ${command.data.name}`);
     } else {
-      console.warn(`Command at ${filePath} is missing required "data" or "execute" property`);
+      logger.warn(`Command at ${filePath} is missing required "data" or "execute" property`);
     }
   }
 }
@@ -76,27 +96,27 @@ if (fs.existsSync(eventsPath)) {
     } else {
       client.on(event.name, (...args) => event.execute(...args, client));
     }
-    console.log(`Loaded event: ${event.name}`);
+    logger.debug(`Loaded event: ${event.name}`);
   }
 }
 
 // Error handling
 process.on('unhandledRejection', (error) => {
-  console.error('Unhandled promise rejection:', error);
+  logger.error('Unhandled promise rejection', error);
 });
 
 // Login
 client
   .login(process.env.DISCORD_BOT_TOKEN || process.env.DISCORD_TOKEN)
-  .then(() => console.log('Bot is logging in...'))
+  .then(() => logger.info('Bot is logging in...'))
   .catch((error) => {
-    console.error('Failed to login:', error);
+    logger.error('Failed to login', error);
     process.exit(1);
   });
 
 // Graceful shutdown
 async function gracefulShutdown() {
-  console.log('\nShutting down gracefully...');
+  logger.info('Shutting down gracefully...');
 
   // Stop auto-poster if running
   if (client.problemAutoPoster && client.problemAutoPoster.isActive()) {
