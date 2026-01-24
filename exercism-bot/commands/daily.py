@@ -1,6 +1,7 @@
 """Daily problem command."""
 
 import random
+from typing import Optional
 
 from discord.ext import commands
 from services.exercism_cli import ExercismCLI
@@ -97,42 +98,69 @@ class DailyCommand(commands.Cog):
         self,
         interaction: discord.Interaction,
         track: str = "python",
-        difficulty: str = None,
+        difficulty: Optional[str] = None,
     ):
         """Get today's daily problem."""
         await interaction.response.defer()
 
         track = track.lower().strip()
 
-        # Get exercise based on difficulty
         if difficulty:
             exercises = EXERCISE_DIFFICULTY.get(
                 difficulty.lower(), EXERCISE_DIFFICULTY["beginner"]
             )
             track_exercises = COMMON_EXERCISES.get(track, COMMON_EXERCISES["python"])
             available = [e for e in exercises if e in track_exercises]
-            exercise = (
-                random.choice(available)
-                if available
-                else random.choice(track_exercises)
-            )
-            actual_difficulty = difficulty.title()
+            unlocked_exercises = []
+            for ex in available:
+                if await self.cli.is_exercise_unlocked(ex, track):
+                    unlocked_exercises.append(ex)
+            if unlocked_exercises:
+                exercise = random.choice(unlocked_exercises)
+                actual_difficulty = difficulty.title()
+            else:
+                no_unlocked = discord.Embed(
+                    title="No Unlocked Exercises",
+                    description=(
+                        f"No unlocked exercises for **{track.title()}** ({difficulty}).\n\n"
+                        "Complete more on [exercism.io](https://exercism.org) to unlock more."
+                    ),
+                    color=discord.Color.orange(),
+                )
+                no_unlocked.set_footer(text="Good luck! 🚀")
+                await interaction.followup.send(embed=no_unlocked)
+                return
         else:
             exercises = COMMON_EXERCISES.get(track, COMMON_EXERCISES["python"])
-            exercise = random.choice(exercises)
-            # Determine difficulty
-            actual_difficulty = "Beginner"
-            for diff, ex_list in EXERCISE_DIFFICULTY.items():
-                if exercise in ex_list:
-                    actual_difficulty = diff.title()
-                    break
+            unlocked_exercises = []
+            for ex in exercises:
+                if await self.cli.is_exercise_unlocked(ex, track):
+                    unlocked_exercises.append(ex)
+            if unlocked_exercises:
+                exercise = random.choice(unlocked_exercises)
+                actual_difficulty = "Beginner"
+                for diff, ex_list in EXERCISE_DIFFICULTY.items():
+                    if exercise in ex_list:
+                        actual_difficulty = diff.title()
+                        break
+            else:
+                no_unlocked = discord.Embed(
+                    title="No Unlocked Exercises",
+                    description=(
+                        f"No unlocked exercises for **{track.title()}**.\n\n"
+                        "Complete more on [exercism.io](https://exercism.org) to unlock more."
+                    ),
+                    color=discord.Color.orange(),
+                )
+                no_unlocked.set_footer(text="Good luck! 🚀")
+                await interaction.followup.send(embed=no_unlocked)
+                return
 
         embed = create_daily_problem_embed(
             exercise=exercise,
             track=track,
             description=f"**Difficulty:** {actual_difficulty}\n\nReady to solve {exercise.replace('-', ' ')}?",
         )
-
         await interaction.followup.send(embed=embed)
 
 

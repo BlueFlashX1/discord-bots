@@ -128,34 +128,59 @@ class DailyScheduler:
             del self.subscribers[user_id]
             logger.info(f"User {user_id} unsubscribed from daily problems")
 
-    async def get_random_exercise(self, track: str, difficulty: str = "beginner") -> str:
+    async def get_random_exercise(
+        self, track: str, difficulty: str = "beginner"
+    ) -> Optional[str]:
         """
-        Get a random exercise for track and difficulty.
-        
+        Get a random exercise for track and difficulty that is UNLOCKED for the user.
+
         Uses real Exercism difficulty data from GitHub config.json.
         Falls back to hardcoded mapping if API fetch fails.
+        Only returns exercises that are unlocked. Returns None if none are unlocked.
         """
         try:
-            # Try to get real difficulty data from Exercism
             exercises = await self.cli.get_exercises_by_difficulty(track, difficulty)
-            
+
             if exercises:
-                logger.debug(f"Found {len(exercises)} exercises for {track} ({difficulty})")
-                return random.choice(exercises)
+                logger.debug(
+                    f"Found {len(exercises)} exercises for {track} ({difficulty})"
+                )
+                unlocked_exercises = []
+                for exercise in exercises:
+                    if await self.cli.is_exercise_unlocked(exercise, track):
+                        unlocked_exercises.append(exercise)
+                    else:
+                        logger.debug(f"Exercise {exercise} ({track}) is locked, skipping")
+
+                if unlocked_exercises:
+                    logger.debug(
+                        f"Found {len(unlocked_exercises)} unlocked exercises for {track} ({difficulty})"
+                    )
+                    return random.choice(unlocked_exercises)
+                logger.warning(
+                    f"No unlocked exercises found for {track} ({difficulty}), trying fallback"
+                )
         except Exception as e:
             logger.warning(f"Failed to fetch real difficulty data for {track}: {e}")
-        
-        # Fallback to hardcoded mapping
+
         logger.debug(f"Using fallback difficulty mapping for {track} ({difficulty})")
         exercises = EXERCISE_DIFFICULTY.get(difficulty, EXERCISE_DIFFICULTY["beginner"])
         track_exercises = COMMON_EXERCISES.get(track, COMMON_EXERCISES["python"])
-
-        # Filter to exercises available in track
         available = [e for e in exercises if e in track_exercises]
         if not available:
-            available = track_exercises
+            available = list(track_exercises)
 
-        return random.choice(available) if available else "hello-world"
+        unlocked = []
+        for exercise in available:
+            if await self.cli.is_exercise_unlocked(exercise, track):
+                unlocked.append(exercise)
+
+        if unlocked:
+            return random.choice(unlocked)
+        logger.warning(
+            f"No unlocked exercises for {track} ({difficulty}); skipping daily problem"
+        )
+        return None
 
     async def send_daily_problem(self, user_id: int):
         """Send daily problem to a user with full problem details."""
@@ -191,10 +216,34 @@ class DailyScheduler:
         # Update index for next time
         config["track_index"] = (track_index + 1) % len(tracks)
 
-        # Get random exercise (now async - uses real Exercism difficulty data)
         exercise = await self.get_random_exercise(track, difficulty)
 
-        # Check if CLI is installed
+        if exercise is None:
+            no_unlocked_embed = discord.Embed(
+                title="No Unlocked Exercises",
+                description=(
+                    f"No unlocked exercises for **{track.title()}** ({difficulty}).\n\n"
+                    "Complete more exercises on [exercism.io](https://exercism.org) to unlock more, "
+                    "then you'll receive daily problems again."
+                ),
+                color=discord.Color.orange(),
+            )
+            no_unlocked_embed.set_footer(text="Good luck! 🚀")
+            try:
+                if channel_id:
+                    channel = self.bot.get_channel(channel_id)
+                    if channel and hasattr(channel, "send"):
+                        await channel.send(embed=no_unlocked_embed)
+                    else:
+                        user = await self.bot.fetch_user(user_id)
+                        await user.send(embed=no_unlocked_embed)
+                else:
+                    user = await self.bot.fetch_user(user_id)
+                    await user.send(embed=no_unlocked_embed)
+            except Exception as e:
+                logger.warning(f"Failed to send 'no unlocked' message to {user_id}: {e}")
+            return
+
         cli_installed, cli_message = await self.cli.check_cli_installed()
 
         if not cli_installed:
