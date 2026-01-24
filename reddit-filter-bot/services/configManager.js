@@ -18,6 +18,13 @@ function loadConfig() {
     currentConfig.subreddits = {};
   }
 
+  // Migrate existing subreddits to include excludeKeywords field
+  for (const subredditName in currentConfig.subreddits) {
+    if (!currentConfig.subreddits[subredditName].excludeKeywords) {
+      currentConfig.subreddits[subredditName].excludeKeywords = [];
+    }
+  }
+
   // Use env variable as fallback for default channel
   if (!currentConfig.default_channel_id) {
     if (process.env.REDDIT_CHANNEL_ID) {
@@ -81,6 +88,7 @@ function addSubreddit(subredditName, options = {}) {
 
   config.subreddits[normalized] = {
     keywords: options.keywords || [],
+    excludeKeywords: options.excludeKeywords || [],
     channel_id: options.channel_id || config.default_channel_id || '',
     min_score: options.min_score ?? 0,
     enabled: true,
@@ -212,6 +220,28 @@ function setSubredditMinScore(subredditName, score) {
   return { success: true, message: `Set r/${key}'s minimum score to ${score}` };
 }
 
+// Set exclude keywords for a subreddit
+function setExcludeKeywords(subredditName, excludeKeywords) {
+  const config = getConfig();
+  const normalized = subredditName.replace(/^r\//, '');
+
+  const key = Object.keys(config.subreddits).find(
+    k => k.toLowerCase() === normalized.toLowerCase()
+  );
+
+  if (!key) {
+    return { success: false, message: `r/${normalized} is not being monitored` };
+  }
+
+  if (!config.subreddits[key].excludeKeywords) {
+    config.subreddits[key].excludeKeywords = [];
+  }
+
+  config.subreddits[key].excludeKeywords = excludeKeywords;
+  saveConfig();
+  return { success: true, message: `Updated exclude keywords for r/${key}` };
+}
+
 // Toggle subreddit enabled/disabled
 function toggleSubreddit(subredditName, enabled) {
   const config = getConfig();
@@ -264,6 +294,7 @@ module.exports = {
   addKeyword,
   removeKeyword,
   setKeywords,
+  setExcludeKeywords,
   setSubredditChannel,
   setSubredditMinScore,
   toggleSubreddit,

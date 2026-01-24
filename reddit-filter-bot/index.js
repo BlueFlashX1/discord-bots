@@ -4,6 +4,25 @@ const fs = require('fs');
 const path = require('path');
 const { RedditMonitor } = require('./services/redditMonitor');
 const configManager = require('./services/configManager');
+const Logger = require('../utils/logger');
+const { validateEnv, validators } = require('../utils/envValidator');
+
+// Initialize logger
+const logger = new Logger('reddit-filter-bot');
+
+// Validate environment variables
+try {
+  validateEnv({
+    DISCORD_TOKEN: {
+      required: true,
+      validator: validators.discordToken,
+      errorMessage: 'DISCORD_TOKEN is required and must be a valid Discord bot token',
+    },
+  }, logger);
+} catch (error) {
+  logger.error('Environment validation failed', error);
+  process.exit(1);
+}
 
 const client = new Client({
   intents: [
@@ -28,9 +47,9 @@ if (fs.existsSync(commandsPath)) {
 
     if ('data' in command && 'execute' in command) {
       client.commands.set(command.data.name, command);
-      console.log(`Loaded command: ${command.data.name}`);
+      logger.debug(`Loaded command: ${command.data.name}`);
     } else {
-      console.warn(`Command at ${filePath} is missing required "data" or "execute" property`);
+      logger.warn(`Command at ${filePath} is missing required "data" or "execute" property`);
     }
   }
 }
@@ -48,36 +67,38 @@ if (fs.existsSync(eventsPath)) {
     } else {
       client.on(event.name, (...args) => event.execute(...args, client, config));
     }
-    console.log(`Loaded event: ${event.name}`);
+    logger.debug(`Loaded event: ${event.name}`);
   }
 }
 
 process.on('unhandledRejection', (error) => {
-  console.error('Unhandled promise rejection:', error);
+  logger.error('Unhandled promise rejection', error);
 });
 
 client.once('ready', async () => {
-  console.log(`Discord bot logged in as ${client.user.tag}`);
+  logger.info(`Discord bot logged in as ${client.user.tag}`);
 
   const subreddits = configManager.getSubreddits();
-  console.log(`Monitoring ${subreddits.length} subreddit(s)`);
+  logger.info(`Monitoring ${subreddits.length} subreddit(s)`);
 
   redditMonitor = new RedditMonitor(config, client);
   await redditMonitor.start();
+  logger.info('Reddit monitor started');
 });
 
 client
   .login(process.env.DISCORD_TOKEN)
-  .then(() => console.log('Bot is logging in...'))
+  .then(() => logger.info('Bot is logging in...'))
   .catch((error) => {
-    console.error('Failed to login:', error);
+    logger.error('Failed to login', error);
     process.exit(1);
   });
 
 process.on('SIGINT', async () => {
-  console.log('\nShutting down...');
+  logger.info('Shutting down...');
   if (redditMonitor) {
     await redditMonitor.stop();
+    logger.info('Reddit monitor stopped');
   }
   client.destroy();
   process.exit(0);

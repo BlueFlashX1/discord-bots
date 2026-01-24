@@ -53,6 +53,17 @@ class RedditMonitor {
     );
   }
 
+  matchesExcludeKeywords(text, excludeKeywords) {
+    // If no exclude keywords, don't exclude anything
+    if (!excludeKeywords || excludeKeywords.length === 0) return false;
+    if (!text) return false;
+
+    const textLower = text.toLowerCase();
+    return excludeKeywords.some(
+      keyword => textLower.includes(keyword.toLowerCase())
+    );
+  }
+
   async checkSubreddits() {
     if (configManager.getPaused()) {
       console.log('Reddit monitor is paused, skipping check');
@@ -90,11 +101,18 @@ class RedditMonitor {
             continue;
           }
 
-          // Check keywords for this subreddit
+          // Check include keywords (must match at least one)
           const titleMatch = this.matchesKeywords(post.title, subConfig.keywords);
           const selftextMatch = this.matchesKeywords(post.selftext || '', subConfig.keywords);
+          const matchesInclude = titleMatch || selftextMatch;
 
-          if (titleMatch || selftextMatch) {
+          // Check exclude keywords (must not match any)
+          const titleExcluded = this.matchesExcludeKeywords(post.title, subConfig.excludeKeywords);
+          const selftextExcluded = this.matchesExcludeKeywords(post.selftext || '', subConfig.excludeKeywords);
+          const matchesExclude = titleExcluded || selftextExcluded;
+
+          // Post matches if: (includes match OR no include filter) AND (not excluded)
+          if (matchesInclude && !matchesExclude) {
             // Post to the subreddit's configured channel
             await this.discordPoster.postSubmission(post, subConfig.channel_id);
             this.postedIds.add(post.id);
