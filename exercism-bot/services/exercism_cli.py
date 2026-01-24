@@ -96,6 +96,46 @@ class ExercismCLI:
             logger.error(f"Error running command: {e}")
             return (1, "", str(e))
 
+    async def is_exercise_unlocked(self, exercise: str, track: str) -> bool:
+        """
+        Check if an exercise is unlocked for the user.
+
+        Args:
+            exercise: Exercise slug (e.g., 'hello-world')
+            track: Track slug (e.g., 'python')
+
+        Returns:
+            True if exercise is unlocked, False otherwise
+        """
+        # Try to download - if it succeeds, exercise is unlocked
+        # If it fails with "not unlocked" or similar, it's locked
+        args = ["download", "--exercise", exercise, "--track", track]
+        returncode, stdout, stderr = await self._run_command(args, timeout=10)
+
+        if returncode == 0:
+            return True
+
+        # Check error message for unlock-related errors
+        error_msg = (stderr or stdout or "").lower()
+        unlock_errors = [
+            "not unlocked",
+            "not available",
+            "locked",
+            "unlock",
+            "complete",
+            "prerequisite",
+        ]
+
+        # If error contains unlock-related keywords, exercise is locked
+        if any(keyword in error_msg for keyword in unlock_errors):
+            logger.debug(f"Exercise {exercise} ({track}) is locked: {error_msg[:100]}")
+            return False
+
+        # Other errors (network, CLI issues) - assume unlocked to avoid false negatives
+        # The download will fail later if truly locked
+        logger.warning(f"Unclear unlock status for {exercise} ({track}): {error_msg[:100]}")
+        return True  # Assume unlocked if error is unclear
+
     async def download_exercise(
         self, exercise: str, track: str
     ) -> Tuple[bool, str, Optional[str]]:
@@ -316,7 +356,7 @@ class ExercismCLI:
                             difficulty = exercise.get("difficulty")
                             if slug and difficulty:
                                 exercises[slug] = difficulty
-                        
+
                         # Optionally include concept exercises (without difficulty)
                         # They're learning exercises that teach concepts in sequence
                         concept_exercises = config_data.get("exercises", {}).get(
