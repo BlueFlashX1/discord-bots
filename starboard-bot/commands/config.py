@@ -2,11 +2,11 @@
 
 import logging
 
+from discord.ext import commands
+from utils.data_manager import DataManager
+
 import discord
 from discord import app_commands
-from discord.ext import commands
-
-from utils.data_manager import DataManager
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +50,7 @@ class ConfigCommands(commands.Cog):
 
         # Log available tags
         available_tags = [tag.name for tag in forum_channel.available_tags]
-        logger.info(
-            f"Forum channel has {len(available_tags)} tags: {available_tags}"
-        )
+        logger.info(f"Forum channel has {len(available_tags)} tags: {available_tags}")
 
         await interaction.response.send_message(
             f"✅ Starboard forum channel set to {forum_channel.mention}\n"
@@ -68,9 +66,7 @@ class ConfigCommands(commands.Cog):
         threshold="Minimum number of ⭐ reactions needed to post to starboard (default: 1)"
     )
     @app_commands.checks.has_permissions(manage_channels=True)
-    async def set_threshold(
-        self, interaction: discord.Interaction, threshold: int
-    ):
+    async def set_threshold(self, interaction: discord.Interaction, threshold: int):
         """Set the star threshold for posting to starboard."""
         if not interaction.guild:
             await interaction.response.send_message(

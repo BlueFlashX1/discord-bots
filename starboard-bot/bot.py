@@ -17,7 +17,7 @@ load_dotenv()
 
 # Configure logging
 logging.basicConfig(
-    level=logging.DEBUG,  # Temporarily set to DEBUG for troubleshooting
+    level=logging.INFO,  # INFO level: important events only
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
@@ -145,14 +145,8 @@ class StarboardBot(commands.Bot):
         self, reaction: discord.Reaction, user: discord.Member
     ):
         """Handle when a reaction is added (for cached messages only)."""
-        logger.info(
-            f"⭐⭐ REACTION ADD EVENT RECEIVED (CACHED) ⭐⭐: {reaction.emoji} by {user} "
-            f"(bot: {user.bot}) on message {reaction.message.id} in channel {reaction.message.channel}"
-        )
-
         # Ignore bot's own reactions
         if user.bot:
-            logger.info(f"Ignoring bot reaction from {user}")
             return
 
         try:
@@ -232,14 +226,8 @@ class StarboardBot(commands.Bot):
         self, reaction: discord.Reaction, user: discord.Member
     ):
         """Handle when a reaction is removed."""
-        logger.info(
-            f"Reaction remove event: {reaction.emoji} by {user} "
-            f"(bot: {user.bot}) on message {reaction.message.id}"
-        )
-
         # Ignore bot's own reactions
         if user.bot:
-            logger.info(f"Ignoring bot reaction removal from {user}")
             return
 
         try:

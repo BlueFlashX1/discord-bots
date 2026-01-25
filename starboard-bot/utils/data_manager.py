@@ -73,24 +73,18 @@ class DataManager:
         entries = self._load_json(self.starboard_file, {})
         self._starboard_cache = entries
         self._cache_dirty["starboard"] = False
-        logger.debug(f"Retrieved {len(entries)} starboard entries (cached)")
         return entries
 
     def is_message_starboarded(self, message_id: int) -> bool:
         """Check if message has already been posted to starboard."""
         entries = self.get_starboard_entries()
-        is_starboarded = str(message_id) in entries
-        logger.debug(f"Message {message_id} starboarded: {is_starboarded}")
-        return is_starboarded
+        return str(message_id) in entries
 
     def get_starboard_entry(self, message_id: int) -> Optional[Dict]:
         """Get starboard entry for a message."""
         entries = self.get_starboard_entries()
         entry = entries.get(str(message_id))
         if entry:
-            logger.debug(f"Found starboard entry for message {message_id}: thread {entry.get('thread_id')}")
-        else:
-            logger.debug(f"No starboard entry found for message {message_id}")
         return entry
 
     def reserve_starboard_entry(
@@ -163,7 +157,6 @@ class DataManager:
         config = self._load_json(self.config_file, {})
         self._config_cache = config
         self._cache_dirty["config"] = False
-        logger.debug(f"Retrieved config for {len(config)} guilds (cached)")
         return config
 
     def get_guild_config(self, guild_id: int) -> Optional[Dict]:
@@ -171,9 +164,6 @@ class DataManager:
         config = self.get_config()
         guild_config = config.get(str(guild_id))
         if guild_config:
-            logger.debug(f"Found config for guild {guild_id}")
-        else:
-            logger.debug(f"No config found for guild {guild_id}")
         return guild_config
 
     def set_guild_config(
@@ -215,9 +205,7 @@ class DataManager:
         guild_config = self.get_guild_config(guild_id)
         if guild_config:
             channel_id = guild_config.get("forum_channel_id")
-            logger.debug(f"Forum channel for guild {guild_id}: {channel_id}")
             return channel_id
-        logger.debug(f"No forum channel configured for guild {guild_id}")
         return None
 
     def set_forum_channel(self, guild_id: int, channel_id: int):
@@ -230,9 +218,7 @@ class DataManager:
         guild_config = self.get_guild_config(guild_id)
         if guild_config:
             threshold = guild_config.get("star_threshold", 1)
-            logger.debug(f"Star threshold for guild {guild_id}: {threshold}")
             return threshold
-        logger.debug(f"Using default star threshold (1) for guild {guild_id}")
         return 1
 
     def set_star_threshold(self, guild_id: int, threshold: int):

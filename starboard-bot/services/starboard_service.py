@@ -52,7 +52,6 @@ class StarboardService:
                         # Also cache tag lookup
                         tag_lookup = {tag.name: tag for tag in forum_channel.available_tags}
                         self._tag_lookup_cache[forum_channel_id] = tag_lookup
-                        logger.debug(f"Pre-warmed forum channel cache: {forum_channel.name} ({forum_channel_id})")
         except Exception as e:
             logger.warning(f"Failed to pre-warm forum channel cache: {e}")
 
@@ -60,31 +59,21 @@ class StarboardService:
         self, reaction: discord.Reaction, user: discord.Member
     ):
         """Handle when a star reaction is added to a message."""
-        logger.info(
-            f"⭐ HANDLE_REACTION_ADD: {reaction.emoji} by {user} on message {reaction.message.id}"
-        )
-
         # Only process star emoji
         if str(reaction.emoji) != "⭐":
-            logger.info(f"Ignoring non-star reaction: {reaction.emoji}")
             return
 
         message = reaction.message
         
-        # Fetch message if it's a partial message (only PartialMessage has 'partial' attribute)
-        # Use try/except to safely check for partial attribute without triggering AttributeError
+        # Fetch message if it's a partial message
         try:
             if message.partial:
-                logger.info(f"Message {message.id} is partial, fetching...")
                 try:
                     message = await message.fetch()
-                    logger.info(f"Successfully fetched message {message.id}")
                 except Exception as e:
                     logger.error(f"Failed to fetch partial message {message.id}: {e}")
                     return
         except AttributeError:
-            # Message object doesn't have 'partial' attribute, so it's already a full Message
-            # This is expected for messages fetched via channel.fetch_message()
             pass
         
         guild = message.guild
@@ -92,8 +81,6 @@ class StarboardService:
         if not guild:
             logger.warning("Message has no guild, skipping")
             return
-
-        logger.info(f"Processing star reaction in guild: {guild.name} ({guild.id})")
 
         # Get configuration for this guild (cached)
         guild_id = guild.id
@@ -109,10 +96,6 @@ class StarboardService:
         forum_channel_id = config.get("forum_channel_id")
         threshold = config.get("star_threshold", 1)
 
-        logger.info(
-            f"Guild config - Forum: {forum_channel_id}, Threshold: {threshold}"
-        )
-
         if not forum_channel_id:
             logger.warning(f"Forum channel not configured for guild {guild_id}")
             return
@@ -120,7 +103,6 @@ class StarboardService:
         # CRITICAL: Check if already processing FIRST (before any file I/O)
         async with self._processing_lock:
             if message.id in self._processing_messages:
-                logger.debug(f"Message {message.id} already being processed, skipping duplicate")
                 return
             self._processing_messages.add(message.id)
 
@@ -142,7 +124,6 @@ class StarboardService:
                     pass  # Non-critical, skip logging
                 
                 # Post to starboard in background (non-blocking for instant response)
-                # Reservation happens inside _post_to_starboard to avoid blocking here
                 task = asyncio.create_task(
                     self._post_to_starboard(message, forum_channel_id, star_count)
                 )
@@ -156,11 +137,6 @@ class StarboardService:
             logger.error(f"Error in handle_reaction_add: {e}", exc_info=True)
             self._processing_messages.discard(message.id)
             raise
-        else:
-            logger.info(
-                f"⏳ Threshold not met yet: {star_count} < {threshold} "
-                f"({threshold - star_count} more needed)"
-            )
 
     async def handle_reaction_remove(
         self, reaction: discord.Reaction, user: discord.Member
@@ -217,14 +193,10 @@ class StarboardService:
 
             if not forum_channel:
                 logger.error(f"Forum channel {forum_channel_id} not found")
-                # React with ❌ to indicate error
                 try:
                     await message.add_reaction("❌")
-                    logger.debug(f"Added ❌ reaction to message {message.id} (channel not found)")
-                except Exception as react_error:
-                    logger.warning(
-                        f"Failed to add ❌ reaction to message {message.id}: {react_error}"
-                    )
+                except Exception:
+                    pass
                 return
 
             if not isinstance(forum_channel, discord.ForumChannel):
@@ -232,14 +204,10 @@ class StarboardService:
                     f"Channel {forum_channel_id} is not a forum channel "
                     f"(type: {type(forum_channel).__name__})"
                 )
-                # React with ❌ to indicate error
                 try:
                     await message.add_reaction("❌")
-                    logger.debug(f"Added ❌ reaction to message {message.id} (not forum channel)")
-                except Exception as react_error:
-                    logger.warning(
-                        f"Failed to add ❌ reaction to message {message.id}: {react_error}"
-                    )
+                except Exception:
+                    pass
                 return
 
             # Get cached tag lookup or create it
@@ -327,8 +295,11 @@ class StarboardService:
                 tags,
             )
 
-            # ✅ reaction already added earlier for instant feedback, so skip here
-            # (This prevents duplicate reactions if posting succeeds)
+            # Log successful post (important event)
+            logger.info(
+                f"✅ Posted message {message.id} to starboard thread {thread_id} "
+                f"(stars: {star_count}, tags: {tags[:3] if tags else 'none'})"
+            )
             
             # Remove from processing set on success
             self._processing_messages.discard(message.id)
