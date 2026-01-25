@@ -93,6 +93,39 @@ class DataManager:
             logger.debug(f"No starboard entry found for message {message_id}")
         return entry
 
+    def reserve_starboard_entry(
+        self,
+        message_id: int,
+        guild_id: int,
+        channel_id: int,
+    ):
+        """
+        Reserve a starboard entry immediately to prevent duplicate posts.
+        This is called BEFORE posting to forum to prevent race conditions.
+        """
+        entries = self.get_starboard_entries()
+        
+        # Check if already exists (another instance might have reserved it)
+        if str(message_id) in entries:
+            raise ValueError(f"Message {message_id} already reserved/posted")
+        
+        # Create reservation entry (thread_id will be updated after posting)
+        entries[str(message_id)] = {
+            "message_id": message_id,
+            "thread_id": None,  # Will be set after posting
+            "channel_id": channel_id,
+            "guild_id": guild_id,
+            "tags": [],
+            "reserved": True,  # Mark as reserved
+        }
+
+        # Update cache and save immediately (atomic operation)
+        self._starboard_cache = entries
+        self._cache_dirty["starboard"] = True
+        self._save_json(self.starboard_file, entries)
+        self._cache_dirty["starboard"] = False
+        logger.debug(f"Reserved starboard entry for message {message_id}")
+
     def add_starboard_entry(
         self,
         message_id: int,
@@ -101,19 +134,21 @@ class DataManager:
         guild_id: int,
         tags: List[str],
     ):
-        """Add a starboard entry."""
+        """Add or update a starboard entry with final thread_id."""
         logger.info(
             f"Adding starboard entry: message {message_id} -> thread {thread_id} "
             f"(guild: {guild_id}, tags: {tags})"
         )
         entries = self.get_starboard_entries()
 
+        # Update existing entry or create new one
         entries[str(message_id)] = {
             "message_id": message_id,
             "thread_id": thread_id,
             "channel_id": channel_id,
             "guild_id": guild_id,
             "tags": tags,
+            "reserved": False,  # Mark as completed
         }
 
         # Update cache immediately
