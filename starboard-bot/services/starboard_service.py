@@ -35,8 +35,8 @@ class StarboardService:
 
         message = reaction.message
         
-        # Fetch message if it's a partial message
-        if message.partial:
+        # Fetch message if it's a partial message (only PartialMessage has 'partial' attribute)
+        if hasattr(message, 'partial') and message.partial:
             logger.info(f"Message {message.id} is partial, fetching...")
             try:
                 message = await message.fetch()
