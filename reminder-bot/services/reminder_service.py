@@ -123,6 +123,10 @@ class ReminderService:
                     logger.debug(f"User {user_id} not found, skipping reminder {reminder_id}")
                     continue
 
+                # Type narrowing: user is guaranteed to be discord.User after None check
+                # Get user mention safely
+                user_mention = getattr(user, 'mention', f"<@{user_id}>")
+
                 # Send reminder
                 reminder_text = f"⏰ **Reminder:** {message}"
                 if notes:
@@ -132,10 +136,13 @@ class ReminderService:
                     # Send to channel if specified
                     try:
                         channel = self.bot.get_channel(channel_id)
-                        if channel:
+                        # Check if channel exists and is Messageable (has send method)
+                        # Use getattr for type-safe access
+                        send_method = getattr(channel, 'send', None) if channel else None
+                        if send_method:
                             # Use retry logic for channel send
                             sent = await retry_discord_api(
-                                lambda: channel.send(f"{user.mention} {reminder_text}"),
+                                lambda: send_method(f"{user_mention} {reminder_text}"),
                                 operation_name=f"Send reminder to channel {channel_id}"
                             )
                             if not sent:
@@ -146,8 +153,8 @@ class ReminderService:
                                     operation_name=f"Send reminder DM to user {user_id}"
                                 )
                         else:
-                            # Channel not found, send DM
-                            logger.debug(f"Channel {channel_id} not found, sending DM to user {user_id}")
+                            # Channel not found or not sendable, send DM
+                            logger.debug(f"Channel {channel_id} not found or not sendable, sending DM to user {user_id}")
                             await retry_discord_api(
                                 lambda: user.send(reminder_text),
                                 operation_name=f"Send reminder DM to user {user_id}"
@@ -169,13 +176,18 @@ class ReminderService:
 
                 # Handle recurring reminders
                 if recurring:
-                    next_time = self._get_next_recurrence(
-                        reminder.get("remind_at"), recurring
-                    )
-                    if next_time:
-                        self.data.update_reminder_time(reminder_id, next_time)
+                    remind_at = reminder.get("remind_at")
+                    # Only process if remind_at is not None
+                    if remind_at is not None:
+                        next_time = self._get_next_recurrence(remind_at, recurring)
+                        if next_time:
+                            self.data.update_reminder_time(reminder_id, next_time)
+                        else:
+                            # Invalid recurring format, remove reminder
+                            self.data.remove_reminder(reminder_id, user_id)
                     else:
-                        # Invalid recurring format, remove reminder
+                        # Missing remind_at, remove reminder
+                        logger.warning(f"Reminder {reminder_id} has recurring but no remind_at, removing")
                         self.data.remove_reminder(reminder_id, user_id)
                 else:
                     # One-time reminder, remove it

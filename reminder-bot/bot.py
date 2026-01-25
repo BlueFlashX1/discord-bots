@@ -5,6 +5,7 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import cast
 
 from discord.ext import commands
 from dotenv import load_dotenv
@@ -40,7 +41,8 @@ if not DISCORD_TOKEN:
     sys.exit(1)
 
 # Type narrowing: after check, DISCORD_TOKEN is guaranteed to be str
-assert DISCORD_TOKEN is not None
+# Use cast to help Pyright understand the type after None check
+DISCORD_TOKEN = cast(str, DISCORD_TOKEN)
 
 # Convert CLIENT_ID to int if provided, otherwise None
 CLIENT_ID: int | None = None
