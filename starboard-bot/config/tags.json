@@ -1,0 +1,137 @@
+{
+  "AI": {
+    "keywords": [
+      "ai",
+      "artificial intelligence",
+      "machine learning",
+      "ml",
+      "llm",
+      "gpt",
+      "claude",
+      "openai",
+      "anthropic",
+      "neural network",
+      "deep learning",
+      "transformer",
+      "prompt",
+      "fine-tune",
+      "model",
+      "training",
+      "inference"
+    ],
+    "description": "Artificial intelligence and machine learning topics"
+  },
+  "Data Science": {
+    "keywords": [
+      "data science",
+      "data analysis",
+      "pandas",
+      "numpy",
+      "dataset",
+      "visualization",
+      "plot",
+      "chart",
+      "statistics",
+      "analytics",
+      "sql",
+      "database",
+      "dataframe",
+      "csv",
+      "json",
+      "data mining"
+    ],
+    "description": "Data science, analysis, and visualization"
+  },
+  "Programming": {
+    "keywords": [
+      "code",
+      "programming",
+      "python",
+      "javascript",
+      "typescript",
+      "bug",
+      "function",
+      "class",
+      "variable",
+      "syntax",
+      "error",
+      "debug",
+      "api",
+      "library",
+      "framework",
+      "git",
+      "github",
+      "repository",
+      "pull request",
+      "commit"
+    ],
+    "description": "Programming and development topics"
+  },
+  "Question": {
+    "keywords": [
+      "?",
+      "how",
+      "why",
+      "what",
+      "help",
+      "question",
+      "wondering",
+      "confused",
+      "stuck",
+      "problem",
+      "issue",
+      "trouble",
+      "doesn't work",
+      "not working"
+    ],
+    "description": "Questions and help requests"
+  },
+  "Resource": {
+    "keywords": [
+      "link",
+      "article",
+      "tutorial",
+      "documentation",
+      "guide",
+      "https://",
+      "http://",
+      "www.",
+      ".com",
+      ".org",
+      "check out",
+      "found this",
+      "useful",
+      "reference"
+    ],
+    "description": "Links, tutorials, and resources"
+  },
+  "Discussion": {
+    "keywords": [
+      "discuss",
+      "opinion",
+      "think",
+      "thoughts",
+      "what do you",
+      "thoughts on",
+      "discussion",
+      "debate",
+      "conversation"
+    ],
+    "description": "General discussions and conversations"
+  },
+  "Announcement": {
+    "keywords": [
+      "announcement",
+      "announcing",
+      "new",
+      "release",
+      "update",
+      "important",
+      "breaking",
+      "news",
+      "launch",
+      "coming soon"
+    ],
+    "description": "Important announcements and news"
+  }
+}
