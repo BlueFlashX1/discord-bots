@@ -24,60 +24,71 @@ class StarboardService:
         self, reaction: discord.Reaction, user: discord.Member
     ):
         """Handle when a star reaction is added to a message."""
-        logger.debug(
-            f"Reaction added: {reaction.emoji} by {user} on message {reaction.message.id}"
+        logger.info(
+            f"⭐ HANDLE_REACTION_ADD: {reaction.emoji} by {user} on message {reaction.message.id}"
         )
 
         # Only process star emoji
         if str(reaction.emoji) != "⭐":
-            logger.debug(f"Ignoring non-star reaction: {reaction.emoji}")
+            logger.info(f"Ignoring non-star reaction: {reaction.emoji}")
             return
 
         message = reaction.message
+        
+        # Fetch message if it's a partial message
+        if message.partial:
+            logger.info(f"Message {message.id} is partial, fetching...")
+            try:
+                message = await message.fetch()
+                logger.info(f"Successfully fetched message {message.id}")
+            except Exception as e:
+                logger.error(f"Failed to fetch partial message {message.id}: {e}")
+                return
+        
         guild = message.guild
 
         if not guild:
-            logger.debug("Message has no guild, skipping")
+            logger.warning("Message has no guild, skipping")
             return
 
-        logger.debug(f"Processing star reaction in guild: {guild.name} ({guild.id})")
+        logger.info(f"Processing star reaction in guild: {guild.name} ({guild.id})")
 
         # Get configuration for this guild
         config = self.data.get_guild_config(guild.id)
         if not config:
-            logger.debug(f"No configuration found for guild {guild.id}")
+            logger.warning(f"No configuration found for guild {guild.id}")
             return
 
         forum_channel_id = config.get("forum_channel_id")
         threshold = config.get("star_threshold", 1)
 
-        logger.debug(
+        logger.info(
             f"Guild config - Forum: {forum_channel_id}, Threshold: {threshold}"
         )
 
         if not forum_channel_id:
-            logger.debug(f"Forum channel not configured for guild {guild.id}")
+            logger.warning(f"Forum channel not configured for guild {guild.id}")
             return
 
         # Check if message already posted to starboard
         if self.data.is_message_starboarded(message.id):
-            logger.debug(f"Message {message.id} already posted to starboard, skipping")
+            logger.info(f"Message {message.id} already posted to starboard, skipping")
             return
 
         # Count star reactions
         star_count = sum(1 for r in message.reactions if str(r.emoji) == "⭐")
-        logger.debug(f"Message {message.id} has {star_count} star reactions (threshold: {threshold})")
+        logger.info(f"Message {message.id} has {star_count} star reactions (threshold: {threshold})")
 
         # Check if threshold is met
         if star_count >= threshold:
             logger.info(
-                f"Threshold met! Posting message {message.id} to starboard "
+                f"✅ Threshold met! Posting message {message.id} to starboard "
                 f"({star_count} >= {threshold})"
             )
             await self._post_to_starboard(message, forum_channel_id, star_count)
         else:
-            logger.debug(
-                f"Threshold not met yet: {star_count} < {threshold} "
+            logger.info(
+                f"⏳ Threshold not met yet: {star_count} < {threshold} "
                 f"({threshold - star_count} more needed)"
             )
 
