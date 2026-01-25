@@ -44,7 +44,11 @@ class StarboardBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
         intents.message_content = True
-        intents.reactions = True
+        # Reactions are included in default() but explicitly enable for clarity
+        intents.guilds = True  # Required for guild reactions
+        intents.guild_messages = True  # Required to see messages with reactions
+        
+        logger.debug(f"Intents configured: {intents}")
 
         super().__init__(
             command_prefix="!",
@@ -85,6 +89,9 @@ class StarboardBot(commands.Bot):
         """Called when the bot is ready."""
         logger.info(f"Bot connected: {self.user} (ID: {self.user.id})")
         logger.info(f"Bot is in {len(self.guilds)} guild(s)")
+        
+        # Log intents status
+        logger.info(f"Intents enabled: reactions={self.intents.reactions}, message_content={self.intents.message_content}, guilds={self.intents.guilds}")
 
         # Log guild information
         for guild in self.guilds:
@@ -102,13 +109,25 @@ class StarboardBot(commands.Bot):
         self.starboard_service = StarboardService(self, data)
 
         logger.info("Starboard service initialized and ready")
+        logger.info("✅ Event handlers registered: on_reaction_add, on_raw_reaction_add, on_reaction_remove")
+        
+        # Test that event handlers are registered
+        if hasattr(self, 'on_reaction_add'):
+            logger.info("✅ on_reaction_add method exists (for cached messages)")
+        else:
+            logger.error("❌ on_reaction_add method NOT FOUND!")
+        
+        if hasattr(self, 'on_raw_reaction_add'):
+            logger.info("✅ on_raw_reaction_add method exists (for all messages, including uncached)")
+        else:
+            logger.error("❌ on_raw_reaction_add method NOT FOUND!")
 
     async def on_reaction_add(
         self, reaction: discord.Reaction, user: discord.Member
     ):
         """Handle when a reaction is added."""
         logger.info(
-            f"⭐ REACTION ADD EVENT: {reaction.emoji} by {user} "
+            f"⭐ REACTION ADD EVENT RECEIVED: {reaction.emoji} by {user} "
             f"(bot: {user.bot}) on message {reaction.message.id} in channel {reaction.message.channel}"
         )
 
@@ -125,18 +144,82 @@ class StarboardBot(commands.Bot):
                 exc_info=True
             )
 
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        """Handle raw reaction add events (works for all messages, even if not in cache)."""
+        logger.info(
+            f"⭐ RAW REACTION ADD EVENT: {payload.emoji} by user {payload.user_id} "
+            f"on message {payload.message_id} in channel {payload.channel_id}"
+        )
+        
+        # Ignore bot's own reactions
+        if payload.user_id == self.user.id:
+            logger.info(f"Ignoring bot's own reaction")
+            return
+        
+        try:
+            # Get the channel and message
+            channel = self.get_channel(payload.channel_id)
+            if not channel:
+                logger.warning(f"Channel {payload.channel_id} not found")
+                return
+            
+            # Fetch the message
+            try:
+                message = await channel.fetch_message(payload.message_id)
+            except discord.NotFound:
+                logger.warning(f"Message {payload.message_id} not found in channel {payload.channel_id}")
+                return
+            except discord.Forbidden:
+                logger.warning(f"No permission to fetch message {payload.message_id} in channel {payload.channel_id}")
+                return
+            
+            # Get the user
+            user = payload.member
+            if not user:
+                # Fetch user if member not available
+                try:
+                    user = await self.fetch_user(payload.user_id)
+                except discord.NotFound:
+                    logger.warning(f"User {payload.user_id} not found")
+                    return
+            
+            if user.bot:
+                logger.info(f"Ignoring bot reaction from {user}")
+                return
+            
+            # Find the actual reaction object from the message
+            # Refresh message to get latest reactions
+            message = await channel.fetch_message(payload.message_id)
+            reaction = None
+            for r in message.reactions:
+                if str(r.emoji) == str(payload.emoji):
+                    reaction = r
+                    break
+            
+            if not reaction:
+                logger.warning(f"Reaction {payload.emoji} not found on message {payload.message_id} after fetch")
+                return
+            
+            logger.info(f"Processing reaction {payload.emoji} on message {payload.message_id} via on_raw_reaction_add")
+            await self.starboard_service.handle_reaction_add(reaction, user)
+        except Exception as e:
+            logger.error(
+                f"Error handling raw reaction add: {e}",
+                exc_info=True
+            )
+
     async def on_reaction_remove(
         self, reaction: discord.Reaction, user: discord.Member
     ):
         """Handle when a reaction is removed."""
-        logger.debug(
+        logger.info(
             f"Reaction remove event: {reaction.emoji} by {user} "
             f"(bot: {user.bot}) on message {reaction.message.id}"
         )
 
         # Ignore bot's own reactions
         if user.bot:
-            logger.debug(f"Ignoring bot reaction removal from {user}")
+            logger.info(f"Ignoring bot reaction removal from {user}")
             return
 
         try:
