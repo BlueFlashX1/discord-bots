@@ -108,10 +108,8 @@ class StarboardService:
             self._processing_messages.add(message.id)
 
         try:
-            # CRITICAL: Check if already posted FIRST (before any processing)
-            # This prevents duplicate posts across multiple PM2 instances
+            # Fast cached check if already posted (prevents duplicates)
             if self.data.is_message_starboarded(message.id):
-                logger.info(f"Message {message.id} already posted to starboard, skipping")
                 self._processing_messages.discard(message.id)
                 return
 
@@ -188,18 +186,8 @@ class StarboardService:
             # Yield control early to prevent blocking event loop
             await asyncio.sleep(0)
             
-            # CRITICAL: Reserve entry NOW (in background) to prevent duplicate posts
-            # This happens in background so it doesn't block the reaction handler
-            try:
-                # Run file write in thread pool to avoid blocking event loop
-                await asyncio.to_thread(
-                    self.data.reserve_starboard_entry,
-                    message.id,
-                    message.guild.id,
-                    message.channel.id
-                )
-            except Exception as reserve_error:
-                # If reservation fails, another instance already reserved it - skip
+            # Check if already posted (fast cached check - prevents duplicates)
+            if self.data.is_message_starboarded(message.id):
                 self._processing_messages.discard(message.id)
                 return
             # Use cached forum channel if available (avoid repeated lookups)
@@ -311,8 +299,9 @@ class StarboardService:
                 logger.error(f"Error accessing thread ID: {id_error}, thread_result type: {type(thread_result)}, attributes: {dir(thread_result)}")
                 raise
 
-            # Update reserved entry with final thread_id and tags
-            self.data.add_starboard_entry(
+            # Save entry immediately after posting (async file write to avoid blocking)
+            await asyncio.to_thread(
+                self.data.add_starboard_entry,
                 message.id,
                 thread_id,
                 message.channel.id,
