@@ -324,16 +324,28 @@ class StarboardService:
             title = base_title
             logger.debug("No tags, using base title only")
 
-        # Discord forum thread title limit is 100 characters
+        # Discord forum thread title limit is 100 characters - ENFORCE IT
         if len(title) > 100:
             # Prioritize tags, truncate base title if needed
-            tag_length = len(tag_prefix) + 1  # +1 for space
+            tag_length = len(tag_prefix) + 1 if tag_prefix else 0  # +1 for space if tags exist
             available_length = 100 - tag_length
+            
             if available_length > 0:
-                title = f"{tag_prefix} {base_title[:available_length]}..."
+                # Truncate base title to fit
+                truncated_base = base_title[:available_length - 3]  # -3 for "..."
+                if len(base_title) > available_length - 3:
+                    truncated_base = truncated_base.rsplit(" ", 1)[0]  # Don't cut words
+                title = f"{tag_prefix} {truncated_base}..." if tag_prefix else f"{truncated_base}..."
             else:
-                title = tag_prefix[:100]
-            logger.debug(f"Title exceeded 100 chars, truncated to: {title}")
+                # Tags alone exceed 100 chars - truncate tags
+                title = tag_prefix[:97] + "..."
+            
+            logger.debug(f"Title exceeded 100 chars, truncated to: '{title}' (length: {len(title)})")
+        
+        # Final safety check - ensure title is exactly 100 chars or less
+        if len(title) > 100:
+            title = title[:100]
+            logger.warning(f"Title still exceeded 100 chars after truncation, forced to: '{title}' (length: {len(title)})")
 
         logger.debug(f"Final title: '{title}' (length: {len(title)})")
         return title
