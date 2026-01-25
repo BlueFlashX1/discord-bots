@@ -151,9 +151,7 @@ class DataManager:
     def get_guild_config(self, guild_id: int) -> Optional[Dict]:
         """Get configuration for a specific guild."""
         config = self.get_config()
-        guild_config = config.get(str(guild_id))
-        if guild_config:
-        return guild_config
+        return config.get(str(guild_id))
 
     def set_guild_config(
         self,
