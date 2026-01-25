@@ -193,6 +193,7 @@ If a bot isn't in the list, it's not running!
 - Ensure **no** `_ = asyncio` in exception handlers.
 - Use **local** `import asyncio as _aio` at the use site for `asyncio.sleep` (e.g. in `contribution_tracker`, `retry`).
 - Avoid `exc_info=True` when logging contribution update errors.
+- **CRITICAL:** Never access `type(e).__name__` or `type(e).__module__` in exception handlers - use `str(e)` only.
 - See "January 2026 – Code-level fix" above.
 
 ---
@@ -244,6 +245,13 @@ git diff HEAD -- ecosystem.config.js
 10. Fix: Removed `_ = asyncio`, local `import asyncio as _aio` at use site, no `exc_info=True`, generic user message when asyncio in error
 11. RESOLVED (code): github-bot stable, `/stats` and `/activity` working
 
+**Jan 25, 2026 (final fix - exception metadata access):**
+12. Error returned: `/stats` still showing "asyncio is not defined" intermittently
+13. Root cause: Accessing `type(e).__name__` and `type(e).__module__` in exception handlers can trigger asyncio NameError when formatting exceptions
+14. Fix: Simplified all exception handlers to use `str(e)` instead of accessing exception metadata (`type(e).__name__`, `getattr(type(e), "__module__", "")`)
+15. Files fixed: `github_service.py`, `contribution_tracker.py`, `retry.py`, `repo_monitor.py`
+16. RESOLVED (final): `/stats` command now stable, no more asyncio errors
+
 ---
 
 ## Prevention Checklist
@@ -253,6 +261,8 @@ Before deploying Python bots:
 - [ ] All code changes committed (`git status`)
 - [ ] `ecosystem.config.js` changes committed
 - [ ] No `_ = asyncio` in exception handlers; use local `import asyncio as _aio` at use site for `asyncio.sleep` where needed
+- [ ] No `type(e).__name__` or `type(e).__module__` access in exception handlers - use `str(e)` only
+- [ ] No `exc_info=True` in exception logging that might format asyncio-related exceptions
 - [ ] VPS has no local modifications (use `git reset --hard`)
 - [ ] PM2 uses `start` not `reload` after deleting processes
 - [ ] Check `pm2 list` shows bot as "online"
@@ -295,8 +305,43 @@ The error recurred after deployment fixes were in place. The root cause was **co
   - In `utils/retry.retry_with_backoff`: `import asyncio as _aio` immediately before `await _aio.sleep(delay)`.
 - **Removed** the debug print block from the stats command.
 
+### Final fix applied (Jan 25, 2026)
+
+**Critical discovery:** Accessing exception metadata (`type(e).__name__`, `type(e).__module__`) in exception handlers can itself trigger the asyncio NameError when formatting exceptions.
+
+**Solution:** Simplified all exception handlers to avoid accessing exception metadata:
+
+**Before (problematic):**
+```python
+except Exception as e:
+    error_type = type(e).__name__
+    error_module = getattr(type(e), "__module__", "")
+    error_msg = str(e)
+    if error_module:
+        error_details = f"{error_module}.{error_type}: {error_msg}"
+    else:
+        error_details = f"{error_type}: {error_msg}"
+    logger.error(f"Error: {error_details}")
+```
+
+**After (safe):**
+```python
+except Exception as e:
+    error_msg = str(e)
+    user_msg = error_msg if "asyncio" not in error_msg.lower() else "A temporary error occurred. Please try again."
+    logger.error(f"Error: {user_msg}")
+```
+
+**Changes:**
+- **Removed `type(e).__name__` access** in `github_service.py` exception handlers
+- **Removed `type(e).__name__` access** in `contribution_tracker.py` exception handler
+- **Wrapped type access in try/except** in `retry.py` to safely handle NameError cases
+- **Removed `exc_info=True`** in `repo_monitor.py` which formats tracebacks that could reference asyncio
+- **Simplified exception formatting** to use `str(e)` only, avoiding all metadata access
+
 ### Files modified (code fix)
 
+**Jan 24, 2026:**
 - `github-bot/commands/stats.py`
 - `github-bot/commands/activity.py`
 - `github-bot/commands/track.py`
@@ -304,6 +349,13 @@ The error recurred after deployment fixes were in place. The root cause was **co
 - `github-bot/services/github_service.py`
 - `github-bot/services/contribution_tracker.py`
 - `github-bot/utils/retry.py`
+
+**Jan 25, 2026 (final fix):**
+- `github-bot/commands/stats.py` - Simplified exception handler to match activity.py pattern
+- `github-bot/services/github_service.py` - Removed `type(e).__name__` access
+- `github-bot/services/contribution_tracker.py` - Removed `type(e).__name__` access, added asyncio filtering
+- `github-bot/utils/retry.py` - Wrapped type access in try/except for safety
+- `github-bot/services/repo_monitor.py` - Removed `exc_info=True`
 
 ---
 
