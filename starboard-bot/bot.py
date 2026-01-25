@@ -131,6 +131,9 @@ class StarboardBot(commands.Bot):
     
     async def on_message(self, message: discord.Message):
         """Test handler to verify events are working."""
+        # Ignore bot's own messages
+        if message.author == self.user:
+            return
         # Only log occasionally to avoid spam
         if message.id % 100 == 0:  # Log every 100th message
             logger.debug(f"Message event received: {message.id} in {message.channel}")
@@ -138,9 +141,9 @@ class StarboardBot(commands.Bot):
     async def on_reaction_add(
         self, reaction: discord.Reaction, user: discord.Member
     ):
-        """Handle when a reaction is added."""
+        """Handle when a reaction is added (for cached messages only)."""
         logger.info(
-            f"⭐ REACTION ADD EVENT RECEIVED: {reaction.emoji} by {user} "
+            f"⭐⭐ REACTION ADD EVENT RECEIVED (CACHED) ⭐⭐: {reaction.emoji} by {user} "
             f"(bot: {user.bot}) on message {reaction.message.id} in channel {reaction.message.channel}"
         )
 
@@ -159,9 +162,10 @@ class StarboardBot(commands.Bot):
 
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
         """Handle raw reaction add events (works for all messages, even if not in cache)."""
+        # Log EVERY reaction event with maximum visibility
         logger.info(
-            f"⭐ RAW REACTION ADD EVENT: {payload.emoji} by user {payload.user_id} "
-            f"on message {payload.message_id} in channel {payload.channel_id}"
+            f"⭐⭐⭐ RAW REACTION ADD EVENT FIRED ⭐⭐⭐: emoji={payload.emoji}, user_id={payload.user_id}, "
+            f"message_id={payload.message_id}, channel_id={payload.channel_id}, guild_id={payload.guild_id}"
         )
         
         # Ignore bot's own reactions
