@@ -190,10 +190,10 @@ class StarboardBot(commands.Bot):
                 logger.warning(f"No permission to fetch message {payload.message_id} in channel {payload.channel_id}")
                 return
             
-            # Get the user
+            # Get the user (optimize: use member from payload if available)
             user = payload.member
             if not user:
-                # Fetch user if member not available
+                # Fetch user if member not available (only if needed)
                 try:
                     user = await self.fetch_user(payload.user_id)
                 except discord.NotFound:
@@ -204,9 +204,8 @@ class StarboardBot(commands.Bot):
                 logger.info(f"Ignoring bot reaction from {user}")
                 return
             
-            # Find the actual reaction object from the message
-            # Refresh message to get latest reactions
-            message = await channel.fetch_message(payload.message_id)
+            # Find the actual reaction object from the already-fetched message
+            # No need to fetch again - message already has reactions
             reaction = None
             for r in message.reactions:
                 if str(r.emoji) == str(payload.emoji):
@@ -214,10 +213,11 @@ class StarboardBot(commands.Bot):
                     break
             
             if not reaction:
-                logger.warning(f"Reaction {payload.emoji} not found on message {payload.message_id} after fetch")
+                logger.warning(f"Reaction {payload.emoji} not found on message {payload.message_id}")
                 return
             
             logger.info(f"Processing reaction {payload.emoji} on message {payload.message_id} via on_raw_reaction_add")
+            # Process immediately without blocking
             await self.starboard_service.handle_reaction_add(reaction, user)
         except Exception as e:
             logger.error(

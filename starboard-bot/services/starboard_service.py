@@ -81,7 +81,7 @@ class StarboardService:
             logger.info(f"Message {message.id} already posted to starboard, skipping")
             return
 
-        # Count star reactions
+        # Count star reactions (optimized: count directly from reactions)
         star_count = sum(1 for r in message.reactions if str(r.emoji) == "⭐")
         logger.info(f"Message {message.id} has {star_count} star reactions (threshold: {threshold})")
 
@@ -91,6 +91,14 @@ class StarboardService:
                 f"✅ Threshold met! Posting message {message.id} to starboard "
                 f"({star_count} >= {threshold})"
             )
+            # Add ✅ reaction IMMEDIATELY for instant user feedback
+            try:
+                await message.add_reaction("✅")
+                logger.debug(f"Added ✅ reaction immediately for instant feedback")
+            except Exception as react_error:
+                logger.warning(f"Failed to add ✅ reaction (non-critical): {react_error}")
+            
+            # Post to starboard (this can take time, but user already got feedback)
             await self._post_to_starboard(message, forum_channel_id, star_count)
         else:
             logger.info(
@@ -258,16 +266,8 @@ class StarboardService:
                 f"with tags: {tags} (applied: {[t.name for t in forum_tags]})"
             )
 
-            # React with ✅ to indicate successful posting
-            # This is non-critical, so don't let it fail the whole operation
-            try:
-                await message.add_reaction("✅")
-                logger.debug(f"Added ✅ reaction to message {message.id}")
-            except Exception as react_error:
-                # Log but don't raise - thread was created successfully
-                logger.warning(
-                    f"Failed to add ✅ reaction to message {message.id} (non-critical): {react_error}"
-                )
+            # ✅ reaction already added earlier for instant feedback, so skip here
+            # (This prevents duplicate reactions if posting succeeds)
 
         except discord.Forbidden as e:
             logger.error(
