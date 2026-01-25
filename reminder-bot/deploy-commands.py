@@ -31,6 +31,9 @@ assert CLIENT_ID is not None
 
 async def deploy():
     """Deploy commands to Discord."""
+    # Type narrowing: DISCORD_TOKEN is guaranteed to be str after module-level checks
+    assert DISCORD_TOKEN is not None
+    
     bot = discord.Client(intents=discord.Intents.default())
     tree = app_commands.CommandTree(bot)
 

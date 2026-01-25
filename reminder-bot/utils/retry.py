@@ -41,7 +41,10 @@ async def retry_discord_api(
         except discord.HTTPException as e:
             # Handle rate limits
             if e.status == 429:
-                retry_after = e.retry_after if hasattr(e, 'retry_after') else delay
+                # Use getattr for type-safe access (retry_after may not exist on all HTTPException types)
+                retry_after = getattr(e, 'retry_after', None)
+                if retry_after is None:
+                    retry_after = delay
                 if attempt < max_retries:
                     logger.warning(f"{operation_name} rate limited. Retrying after {retry_after:.1f}s...")
                     await asyncio.sleep(retry_after)
