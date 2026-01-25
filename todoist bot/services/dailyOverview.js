@@ -26,7 +26,6 @@ class DailyOverview {
 
   async sendDailyOverviews() {
     // Get all users who have set a channel preference
-    const userPreferences = require('./userPreferences');
 
     // Load preferences directly from file
     const fs = require('fs');
@@ -87,7 +86,7 @@ class DailyOverview {
       if (todayTasks.length === 0) {
         const emptyEmbed = createEmptyStateEmbed(
           'Daily Task Overview',
-          "🎉 **No tasks due today!** You're all caught up!"
+          "🎉 **No tasks due today!** You're all caught up!",
         );
         await channel.send({ embeds: [emptyEmbed] });
         return;
@@ -98,7 +97,7 @@ class DailyOverview {
         Object.keys(byProject).map(async (projectId) => {
           const name = await this.todoistService.getProjectName(projectId);
           return { projectId, name };
-        })
+        }),
       );
 
       // Create main embed
@@ -112,7 +111,8 @@ class DailyOverview {
         name: '📊 Status',
         value: `⬜ ${incompleteCount} incomplete\n✅ ${completedCount} completed`,
         inline: true,
-      });
+      },
+      );
 
       // Create project embeds (one per project)
       const embeds = [mainEmbed];
@@ -166,7 +166,7 @@ class DailyOverview {
       if (todayTasks.length === 0) {
         const emptyEmbed = createEmptyStateEmbed(
           "Today's Tasks",
-          "🎉 **No tasks due today!** You're all caught up!"
+          "🎉 **No tasks due today!** You're all caught up!",
         );
         await interaction.editReply({ embeds: [emptyEmbed] });
         return;
@@ -177,7 +177,7 @@ class DailyOverview {
         Object.keys(byProject).map(async (projectId) => {
           const name = await this.todoistService.getProjectName(projectId);
           return { projectId, name };
-        })
+        }),
       );
 
       // Create main embed
@@ -194,7 +194,8 @@ class DailyOverview {
         name: '📊 Status',
         value: `⬜ ${incompleteCount} incomplete\n✅ ${completedCount} completed`,
         inline: true,
-      });
+      },
+      );
 
       // Create project embeds (one per project)
       const embeds = [mainEmbed];

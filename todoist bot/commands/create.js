@@ -1,5 +1,5 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { COLORS, createTaskEmbed, PRIORITY_EMOJI, PRIORITY_NAMES } = require('../utils/embeds');
+const { SlashCommandBuilder } = require('discord.js');
+const { COLORS, createTaskEmbed } = require('../utils/embeds');
 const Logger = require('../../utils/logger');
 const { retryDiscordAPI } = require('../../utils/retry');
 
@@ -53,7 +53,7 @@ module.exports = {
           {
             operationName: 'Project autocomplete',
             logger,
-          }
+          },
         );
       } catch (error) {
         logger.error('Error in create project autocomplete', error);
@@ -75,7 +75,7 @@ module.exports = {
           {
             operationName: 'Labels autocomplete',
             logger,
-          }
+          },
         );
       } catch (error) {
         logger.error('Error in create labels autocomplete', error);

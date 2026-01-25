@@ -33,12 +33,12 @@ class TagClassifier:
                 # Extract keywords for each tag
                 self.tag_keywords = {}
                 self.tag_patterns = {}
-                
+
                 for tag_name, tag_info in tags_data.items():
                     keywords = tag_info.get("keywords", [])
                     # Convert to lowercase for case-insensitive matching
                     self.tag_keywords[tag_name] = [kw.lower() for kw in keywords]
-                    
+
                     # Compile regex patterns with word boundaries for better matching
                     patterns = []
                     for keyword in keywords:
@@ -53,7 +53,7 @@ class TagClassifier:
                             # Single word - use word boundaries
                             pattern = rf"\b{escaped}\b"
                         patterns.append(re.compile(pattern, re.IGNORECASE))
-                    
+
                     self.tag_patterns[tag_name] = patterns
         except (json.JSONDecodeError, KeyError, IOError) as e:
             logger.error(f"Error loading tags file: {e}", exc_info=True)
@@ -64,10 +64,10 @@ class TagClassifier:
         """
         Classify message content and return list of applicable tags.
         Optimized for speed: uses simple string matching instead of regex.
-        
+
         Args:
             content: Message content to classify
-            
+
         Returns:
             List of tag names that match the content
         """

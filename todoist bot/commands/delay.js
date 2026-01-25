@@ -1,5 +1,5 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { COLORS, createSuccessEmbed } = require('../utils/embeds');
+const { SlashCommandBuilder } = require('discord.js');
+const { createSuccessEmbed } = require('../utils/embeds');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -10,10 +10,10 @@ module.exports = {
         .setName('task')
         .setDescription('Select a task to delay')
         .setRequired(true)
-        .setAutocomplete(true)
+        .setAutocomplete(true),
     )
     .addStringOption((option) =>
-      option.setName('date').setDescription('New due date').setRequired(true).setAutocomplete(true)
+      option.setName('date').setDescription('New due date').setRequired(true).setAutocomplete(true),
     ),
   async autocomplete(interaction, client, todoistService) {
     const focusedOption = interaction.options.getFocused(true);
@@ -49,7 +49,7 @@ module.exports = {
       ];
 
       const filtered = commonDates.filter((date) =>
-        date.name.toLowerCase().includes(focusedOption.value.toLowerCase())
+        date.name.toLowerCase().includes(focusedOption.value.toLowerCase()),
       );
 
       await interaction.respond(filtered);
@@ -108,14 +108,14 @@ module.exports = {
 
       const embed = createSuccessEmbed(
         'Task Delayed',
-        `**${task.content}**\n\n📅 **New due date:** ${formattedDate}`
+        `**${task.content}**\n\n📅 **New due date:** ${formattedDate}`,
       );
 
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
       console.error('Error in delay command:', error);
       await interaction.editReply(
-        '❌ Error delaying task. Please check the task ID and date format.'
+        '❌ Error delaying task. Please check the task ID and date format.',
       );
     }
   },

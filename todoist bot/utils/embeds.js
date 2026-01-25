@@ -101,7 +101,7 @@ function createTaskListEmbed(tasks, title, color = COLORS.info) {
   return embed;
 }
 
-function createDailyOverviewEmbed(tasks, organized, allTasks, todoistService) {
+function createDailyOverviewEmbed(tasks, _organized, _allTasks, _todoistService) {
   const embed = new EmbedBuilder()
     .setTitle('📋 Daily Task Overview')
     .setColor(COLORS.primary)

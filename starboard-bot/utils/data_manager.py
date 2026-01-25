@@ -59,7 +59,7 @@ class DataManager:
         # Use cache if available and not dirty
         if self._starboard_cache is not None and not self._cache_dirty["starboard"]:
             return self._starboard_cache
-        
+
         # Load from file and cache
         entries = self._load_json(self.starboard_file, {})
         self._starboard_cache = entries
@@ -75,38 +75,6 @@ class DataManager:
         """Get starboard entry for a message."""
         entries = self.get_starboard_entries()
         return entries.get(str(message_id))
-
-    def reserve_starboard_entry(
-        self,
-        message_id: int,
-        guild_id: int,
-        channel_id: int,
-    ):
-        """
-        Reserve a starboard entry immediately to prevent duplicate posts.
-        Optimized: minimal logging, fast cache check.
-        """
-        entries = self.get_starboard_entries()
-        
-        # Check if already exists (another instance might have reserved it)
-        if str(message_id) in entries:
-            raise ValueError(f"Message {message_id} already reserved/posted")
-        
-        # Create reservation entry (thread_id will be updated after posting)
-        entries[str(message_id)] = {
-            "message_id": message_id,
-            "thread_id": None,
-            "channel_id": channel_id,
-            "guild_id": guild_id,
-            "tags": [],
-            "reserved": True,
-        }
-
-        # Update cache and save immediately (fast write)
-        self._starboard_cache = entries
-        self._cache_dirty["starboard"] = True
-        self._save_json(self.starboard_file, entries)
-        self._cache_dirty["starboard"] = False
 
     def add_starboard_entry(
         self,
@@ -141,7 +109,7 @@ class DataManager:
         # Use cache if available and not dirty
         if self._config_cache is not None and not self._cache_dirty["config"]:
             return self._config_cache
-        
+
         # Load from file and cache
         config = self._load_json(self.config_file, {})
         self._config_cache = config
@@ -179,7 +147,7 @@ class DataManager:
         # Update cache immediately
         self._config_cache = config
         self._cache_dirty["config"] = True
-        
+
         self._save_json(self.config_file, config)
         self._cache_dirty["config"] = False  # Cache is now in sync
         logger.info(f"Config saved for guild {guild_id}")

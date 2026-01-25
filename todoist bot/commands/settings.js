@@ -14,13 +14,13 @@ module.exports = {
           option
             .setName('channel')
             .setDescription(
-              'Channel to send daily overviews (optional - removes channel if not provided)'
+              'Channel to send daily overviews (optional - removes channel if not provided)',
             )
-            .addChannelTypes(ChannelType.GuildText)
-        )
+            .addChannelTypes(ChannelType.GuildText),
+        ),
     )
     .addSubcommand((subcommand) =>
-      subcommand.setName('view').setDescription('View your current settings')
+      subcommand.setName('view').setDescription('View your current settings'),
     ),
 
   async execute(interaction) {
@@ -49,7 +49,7 @@ module.exports = {
           const embed = new EmbedBuilder()
             .setTitle('✅ Daily Overview Channel Removed')
             .setDescription(
-              'Daily overviews have been disabled.\n\nUse `/settings channel` to set a channel again and resume daily notifications.'
+              'Daily overviews have been disabled.\n\nUse `/settings channel` to set a channel again and resume daily notifications.',
             )
             .setColor(COLORS.warning)
             .setTimestamp();
@@ -65,11 +65,12 @@ module.exports = {
           .setDescription('Configure your Todoist bot preferences')
           .addFields({
             name: '📬 Daily Overview Channel',
-            value: channelId 
-              ? `✅ Configured: <#${channelId}>\n⏰ Sends daily summary at 9:00 AM` 
+            value: channelId
+              ? `✅ Configured: <#${channelId}>\n⏰ Sends daily summary at 9:00 AM`
               : '❌ Not set\nUse `/settings channel` to configure',
             inline: false,
-          })
+          },
+          )
           .setColor(COLORS.info)
           .setTimestamp();
 

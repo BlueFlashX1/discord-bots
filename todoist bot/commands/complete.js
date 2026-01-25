@@ -1,5 +1,5 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { COLORS, createSuccessEmbed } = require('../utils/embeds');
+const { SlashCommandBuilder } = require('discord.js');
+const { createSuccessEmbed } = require('../utils/embeds');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -10,7 +10,7 @@ module.exports = {
         .setName('task')
         .setDescription('Select a task to complete')
         .setRequired(true)
-        .setAutocomplete(true)
+        .setAutocomplete(true),
     ),
   async autocomplete(interaction, client, todoistService) {
     const focusedValue = interaction.options.getFocused();
@@ -58,14 +58,14 @@ module.exports = {
 
       const embed = createSuccessEmbed(
         'Task Completed',
-        `**${task.content}**\n\n🎉 Great job! Keep up the productivity!`
+        `**${task.content}**\n\n🎉 Great job! Keep up the productivity!`,
       );
 
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
       console.error('Error in complete command:', error);
       await interaction.editReply(
-        '❌ Error completing task. Please check the task ID and try again.'
+        '❌ Error completing task. Please check the task ID and try again.',
       );
     }
   },

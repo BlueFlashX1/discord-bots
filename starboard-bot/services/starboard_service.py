@@ -19,16 +19,16 @@ class StarboardService:
         self.bot = bot
         self.data = data_manager
         self.tag_classifier = TagClassifier()
-        
+
         # Cache forum channel and config for instant access
         self._forum_channel_cache: Dict[int, Optional[discord.ForumChannel]] = {}
         self._guild_config_cache: Dict[int, Optional[Dict]] = {}
         self._tag_lookup_cache: Dict[int, Dict[str, discord.ForumTag]] = {}  # Cache tag lookups per forum
-        
+
         # Processing locks to prevent duplicate work
         self._processing_messages: Set[int] = set()
         self._processing_lock = asyncio.Lock()
-        
+
         # Pre-warm cache on startup to avoid first-reaction delay
         # Load config and starboard entries into cache immediately
         try:
@@ -36,9 +36,9 @@ class StarboardService:
             _ = self.data.get_starboard_entries()  # Warm starboard cache
         except Exception as e:
             logger.warning(f"Failed to pre-warm cache: {e}")
-        
+
         logger.info("StarboardService initialized")
-    
+
     async def warm_forum_channel_cache(self):
         """Pre-warm forum channel cache after bot is ready."""
         try:
@@ -64,7 +64,7 @@ class StarboardService:
             return
 
         message = reaction.message
-        
+
         # Fetch message if it's a partial message
         try:
             if message.partial:
@@ -75,7 +75,7 @@ class StarboardService:
                     return
         except AttributeError:
             pass
-        
+
         guild = message.guild
 
         if not guild:
@@ -88,7 +88,7 @@ class StarboardService:
         if config is None:
             config = self.data.get_guild_config(guild_id)
             self._guild_config_cache[guild_id] = config
-        
+
         if not config:
             logger.warning(f"No configuration found for guild {guild_id}")
             return
@@ -122,7 +122,7 @@ class StarboardService:
                     await message.add_reaction("✅")
                 except Exception:
                     pass  # Non-critical, skip logging
-                
+
                 # Post to starboard in background (non-blocking for instant response)
                 task = asyncio.create_task(
                     self._post_to_starboard(message, forum_channel_id, star_count)
@@ -167,7 +167,7 @@ class StarboardService:
         try:
             # Yield control early to prevent blocking event loop
             await asyncio.sleep(0)
-            
+
             # Check if already posted (fast cached check - prevents duplicates)
             if self.data.is_message_starboarded(message.id):
                 self._processing_messages.discard(message.id)
@@ -216,12 +216,12 @@ class StarboardService:
             if content:
                 content_tags = self.tag_classifier.classify(content)
                 tags.extend(content_tags)
-            
+
             # Add channel-based tags
             channel_name = getattr(message.channel, 'name', '').lower()
             channel_tags = self._classify_channel_name(channel_name)
             tags.extend(channel_tags)
-            
+
             # Remove duplicates
             tags = list(dict.fromkeys(tags))  # Preserves order, removes dupes
 
@@ -234,11 +234,11 @@ class StarboardService:
                 base_title = message.embeds[0].title.strip()
             elif content:
                 base_title = content.split("\n")[0].strip()[:80]
-            
+
             if not base_title or len(base_title) < 3:
                 channel_name = getattr(message.channel, 'name', 'Channel')
                 base_title = f"Starred from #{channel_name}"
-            
+
             # Build title with tags
             tag_prefix = " ".join(f"[{tag}]" for tag in tags[:3])  # Limit to 3 tags
             title = f"{tag_prefix} {base_title}" if tag_prefix else base_title
@@ -289,7 +289,7 @@ class StarboardService:
                 f"✅ Posted message {message.id} to starboard thread {thread_id} "
                 f"(stars: {star_count}, tags: {tags[:3] if tags else 'none'})"
             )
-            
+
             # Remove from processing set on success
             self._processing_messages.discard(message.id)
 
@@ -319,93 +319,18 @@ class StarboardService:
                 pass
             self._processing_messages.discard(message.id)
 
-    def _extract_message_content(self, message: discord.Message) -> str:
-        """
-        Extract content from message with multiple fallbacks.
-        
-        Priority:
-        1. message.content (text content)
-        2. Embed title/description
-        3. Attachment filenames
-        4. Channel name + author name as fallback
-        
-        Args:
-            message: Discord message object
-            
-        Returns:
-            Extracted content string
-        """
-        # Try message content first
-        if message.content and message.content.strip():
-            return message.content.strip()
-        
-        # Try embeds
-        if message.embeds:
-            for embed in message.embeds:
-                # Try embed title
-                if embed.title and embed.title.strip():
-                    content = embed.title.strip()
-                    if embed.description and embed.description.strip():
-                        content += f" - {embed.description.strip()}"
-                    return content
-                # Try embed description
-                if embed.description and embed.description.strip():
-                    return embed.description.strip()
-                # Try embed fields
-                if embed.fields:
-                    field_texts = [f"{field.name}: {field.value}" for field in embed.fields if field.value]
-                    if field_texts:
-                        return " | ".join(field_texts)
-        
-        # Try attachments
-        if message.attachments:
-            filenames = [att.filename for att in message.attachments if att.filename]
-            if filenames:
-                return f"Attachment: {', '.join(filenames)}"
-        
-        # Fallback: Use channel name and author
-        channel_name = getattr(message.channel, 'name', 'Unknown Channel')
-        author_name = getattr(message.author, 'display_name', getattr(message.author, 'name', 'Unknown'))
-        return f"Message from {author_name} in #{channel_name}"
-
-    def _classify_message(self, message: discord.Message, content: str) -> List[str]:
-        """
-        Classify message (simplified - content + channel only for speed).
-        
-        Args:
-            message: Discord message object
-            content: Message content string
-            
-        Returns:
-            List of tag names
-        """
-        tags = []
-        
-        # Classify based on content (if exists)
-        if content:
-            content_tags = self.tag_classifier.classify(content)
-            tags.extend(content_tags)
-        
-        # Classify based on channel name (fast lookup)
-        channel_name = getattr(message.channel, 'name', '').lower()
-        channel_tags = self._classify_channel_name(channel_name)
-        tags.extend(channel_tags)
-        
-        # Remove duplicates (preserve order)
-        return list(dict.fromkeys(tags))
-
     def _classify_channel_name(self, channel_name: str) -> List[str]:
         """
         Classify channel name to suggest tags.
-        
+
         Args:
             channel_name: Channel name (lowercase)
-            
+
         Returns:
             List of suggested tag names
         """
         tags = []
-        
+
         # Channel name patterns -> tags
         channel_patterns = {
             'data-science': 'Data Science',
@@ -429,49 +354,10 @@ class StarboardService:
             'discussion': 'Discussion',
             'chat': 'Discussion',
         }
-        
+
         # Check for patterns in channel name
         for pattern, tag_name in channel_patterns.items():
             if pattern in channel_name:
                 tags.append(tag_name)
-        
-        return tags
 
-    def _create_standardized_title(self, message: discord.Message, content: str, tags: List[str]) -> str:
-        """
-        Create standardized title (simplified for speed).
-        
-        Args:
-            message: Discord message object
-            content: Message content string
-            tags: List of tags to include
-            
-        Returns:
-            Standardized title string
-        """
-        # Get base title (embed title > content > fallback)
-        base_title = None
-        if message.embeds and message.embeds[0].title:
-            base_title = message.embeds[0].title.strip()
-        elif content:
-            base_title = content.split("\n")[0].strip()
-        
-        # Fallback if empty
-        if not base_title or len(base_title) < 3:
-            channel_name = getattr(message.channel, 'name', '').replace('-', ' ').title()
-            base_title = f"Starred from {channel_name}" if channel_name else "Starred Message"
-        
-        # Build title with tags (limit to 3 tags for shorter titles)
-        tag_prefix = " ".join(f"[{tag}]" for tag in tags[:3])
-        title = f"{tag_prefix} {base_title}" if tag_prefix else base_title
-        
-        # Enforce 100 char limit
-        if len(title) > 100:
-            tag_len = len(tag_prefix) + 1 if tag_prefix else 0
-            available = 100 - tag_len
-            if available > 0:
-                title = f"{tag_prefix} {base_title[:available-3]}..."
-            else:
-                title = tag_prefix[:97] + "..."
-        
-        return title[:100]  # Final safety
+        return tags
