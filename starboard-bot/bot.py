@@ -47,11 +47,10 @@ class StarboardBot(commands.Bot):
         intents.message_content = True
         intents.guilds = True  # Required for guild reactions
         intents.guild_messages = True  # Required to see messages with reactions
-        # Note: reactions intent doesn't exist as separate attribute in discord.py
-        # Raw reaction events work with guilds + guild_messages intents
+        intents.reactions = True  # EXPLICITLY enable reactions intent (required for on_raw_reaction_add)
         
         logger.debug(f"Intents configured: {intents}")
-        logger.debug(f"Intents value: guilds={intents.guilds}, guild_messages={intents.guild_messages}, message_content={intents.message_content}")
+        logger.debug(f"Intents value: guilds={intents.guilds}, guild_messages={intents.guild_messages}, reactions={intents.reactions}, message_content={intents.message_content}")
 
         super().__init__(
             command_prefix="!",
@@ -94,8 +93,9 @@ class StarboardBot(commands.Bot):
         logger.info(f"Bot is in {len(self.guilds)} guild(s)")
         
         # Log intents status - verify reactions intent is enabled
-        logger.info(f"Intents enabled: reactions={self.intents.reactions}, message_content={self.intents.message_content}, guilds={self.intents.guilds}, guild_messages={self.intents.guild_messages}")
-        if not self.intents.reactions:
+        reactions_enabled = getattr(self.intents, 'reactions', False)
+        logger.info(f"Intents enabled: reactions={reactions_enabled}, message_content={self.intents.message_content}, guilds={self.intents.guilds}, guild_messages={self.intents.guild_messages}")
+        if not reactions_enabled:
             logger.error("❌ CRITICAL: reactions intent is NOT enabled! Reaction events will not work!")
         else:
             logger.info("✅ reactions intent is enabled - reaction events should work")
