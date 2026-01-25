@@ -259,12 +259,14 @@ class StarboardService:
             )
 
             # React with ✅ to indicate successful posting
+            # This is non-critical, so don't let it fail the whole operation
             try:
                 await message.add_reaction("✅")
                 logger.debug(f"Added ✅ reaction to message {message.id}")
             except Exception as react_error:
+                # Log but don't raise - thread was created successfully
                 logger.warning(
-                    f"Failed to add ✅ reaction to message {message.id}: {react_error}"
+                    f"Failed to add ✅ reaction to message {message.id} (non-critical): {react_error}"
                 )
 
         except discord.Forbidden as e:
