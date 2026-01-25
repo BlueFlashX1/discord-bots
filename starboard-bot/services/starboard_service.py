@@ -49,7 +49,7 @@ class StarboardService:
             return
 
         forum_channel_id = config.get("forum_channel_id")
-        threshold = config.get("star_threshold", 5)
+        threshold = config.get("star_threshold", 1)
 
         logger.debug(
             f"Guild config - Forum: {forum_channel_id}, Threshold: {threshold}"
