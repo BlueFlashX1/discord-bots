@@ -36,16 +36,20 @@ class StarboardService:
         message = reaction.message
         
         # Fetch message if it's a partial message (only PartialMessage has 'partial' attribute)
-        # Use getattr() with default False to safely check for partial attribute
-        is_partial = getattr(message, 'partial', False)
-        if is_partial:
-            logger.info(f"Message {message.id} is partial, fetching...")
-            try:
-                message = await message.fetch()
-                logger.info(f"Successfully fetched message {message.id}")
-            except Exception as e:
-                logger.error(f"Failed to fetch partial message {message.id}: {e}")
-                return
+        # Use try/except to safely check for partial attribute without triggering AttributeError
+        try:
+            if message.partial:
+                logger.info(f"Message {message.id} is partial, fetching...")
+                try:
+                    message = await message.fetch()
+                    logger.info(f"Successfully fetched message {message.id}")
+                except Exception as e:
+                    logger.error(f"Failed to fetch partial message {message.id}: {e}")
+                    return
+        except AttributeError:
+            # Message object doesn't have 'partial' attribute, so it's already a full Message
+            # This is expected for messages fetched via channel.fetch_message()
+            pass
         
         guild = message.guild
 
