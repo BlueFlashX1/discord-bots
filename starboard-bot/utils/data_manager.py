@@ -20,6 +20,11 @@ class DataManager:
         self.starboard_file = self.data_dir / "starboard.json"
         self.config_file = self.data_dir / "config.json"
 
+        # In-memory cache for performance (avoid repeated file reads)
+        self._starboard_cache: Optional[Dict[str, Dict]] = None
+        self._config_cache: Optional[Dict[str, Any]] = None
+        self._cache_dirty = {"starboard": False, "config": False}
+
         # Log file status
         logger.debug(
             f"Data files - Starboard: {self.starboard_file.exists()}, "
@@ -56,9 +61,16 @@ class DataManager:
 
     # Starboard entries
     def get_starboard_entries(self) -> Dict[str, Dict]:
-        """Get all starboard entries."""
+        """Get all starboard entries (cached for performance)."""
+        # Use cache if available and not dirty
+        if self._starboard_cache is not None and not self._cache_dirty["starboard"]:
+            return self._starboard_cache
+        
+        # Load from file and cache
         entries = self._load_json(self.starboard_file, {})
-        logger.debug(f"Retrieved {len(entries)} starboard entries")
+        self._starboard_cache = entries
+        self._cache_dirty["starboard"] = False
+        logger.debug(f"Retrieved {len(entries)} starboard entries (cached)")
         return entries
 
     def is_message_starboarded(self, message_id: int) -> bool:
@@ -101,14 +113,26 @@ class DataManager:
             "tags": tags,
         }
 
+        # Update cache immediately
+        self._starboard_cache = entries
+        self._cache_dirty["starboard"] = True
+        
         self._save_json(self.starboard_file, entries)
+        self._cache_dirty["starboard"] = False  # Cache is now in sync
         logger.debug(f"Starboard entry saved. Total entries: {len(entries)}")
 
     # Guild configuration
     def get_config(self) -> Dict[str, Any]:
-        """Get all guild configurations."""
+        """Get all guild configurations (cached for performance)."""
+        # Use cache if available and not dirty
+        if self._config_cache is not None and not self._cache_dirty["config"]:
+            return self._config_cache
+        
+        # Load from file and cache
         config = self._load_json(self.config_file, {})
-        logger.debug(f"Retrieved config for {len(config)} guilds")
+        self._config_cache = config
+        self._cache_dirty["config"] = False
+        logger.debug(f"Retrieved config for {len(config)} guilds (cached)")
         return config
 
     def get_guild_config(self, guild_id: int) -> Optional[Dict]:
@@ -147,7 +171,12 @@ class DataManager:
             config[guild_key]["star_threshold"] = star_threshold
             logger.debug(f"Set star threshold to {star_threshold}")
 
+        # Update cache immediately
+        self._config_cache = config
+        self._cache_dirty["config"] = True
+        
         self._save_json(self.config_file, config)
+        self._cache_dirty["config"] = False  # Cache is now in sync
         logger.info(f"Config saved for guild {guild_id}")
 
     def get_forum_channel(self, guild_id: int) -> Optional[int]:
