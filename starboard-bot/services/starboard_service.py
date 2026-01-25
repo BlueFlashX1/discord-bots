@@ -66,7 +66,7 @@ class StarboardService:
         message = reaction.message
 
         # Fetch message if it's a partial message
-        if hasattr(message, 'partial') and message.partial:
+        if hasattr(message, 'partial') and message.partial:  # pyright: ignore[reportAttributeAccessIssue]
             try:
                 message = await message.fetch()
             except Exception as e:

@@ -4,6 +4,7 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 
 import discord
 from discord.ext import commands
@@ -31,11 +32,18 @@ logger = logging.getLogger(__name__)
 
 # Bot configuration
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-CLIENT_ID = os.getenv("CLIENT_ID")
+CLIENT_ID_STR = os.getenv("CLIENT_ID")
+CLIENT_ID: Optional[int] = None
 
 if not DISCORD_TOKEN:
     logger.error("DISCORD_TOKEN not found in environment variables")
     sys.exit(1)
+
+if CLIENT_ID_STR:
+    try:
+        CLIENT_ID = int(CLIENT_ID_STR)
+    except (ValueError, TypeError):
+        logger.warning(f"CLIENT_ID is not a valid integer: {CLIENT_ID_STR}")
 
 
 class StarboardBot(commands.Bot):
@@ -89,7 +97,10 @@ class StarboardBot(commands.Bot):
 
     async def on_ready(self):
         """Called when the bot is ready."""
-        logger.info(f"Bot connected: {self.user} (ID: {self.user.id})")
+        if self.user:
+            logger.info(f"Bot connected: {self.user} (ID: {self.user.id})")
+        else:
+            logger.warning("Bot connected but self.user is None")
         logger.info(f"Bot is in {len(self.guilds)} guild(s)")
 
         # Log intents status - verify reactions intent is enabled
@@ -160,7 +171,7 @@ class StarboardBot(commands.Bot):
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
         """Handle raw reaction add events (works for all messages, even if not in cache)."""
         # Ignore bot's own reactions
-        if payload.user_id == self.user.id:
+        if not self.user or payload.user_id == self.user.id:
             return
 
         try:
@@ -169,7 +180,10 @@ class StarboardBot(commands.Bot):
             if not channel:
                 return
 
-            # Fetch the message
+            # Fetch the message - only text-based channels have fetch_message
+            if not isinstance(channel, (discord.TextChannel, discord.Thread, discord.DMChannel, discord.GroupChannel)):
+                return
+
             try:
                 message = await channel.fetch_message(payload.message_id)
             except (discord.NotFound, discord.Forbidden):
@@ -179,12 +193,29 @@ class StarboardBot(commands.Bot):
             user = payload.member
             if not user:
                 try:
-                    user = await self.fetch_user(payload.user_id)
+                    fetched_user = await self.fetch_user(payload.user_id)
+                    # If we can't get a Member, we need to get one from the guild
+                    if message.guild and isinstance(fetched_user, discord.User):
+                        user = message.guild.get_member(fetched_user.id)
+                        if not user:
+                            # Fallback: create a Member-like object or skip
+                            return
                 except discord.NotFound:
                     return
 
-            if user.bot:
+            if not user or user.bot:
                 return
+
+            # Ensure user is a Member (not just User) for guild-specific operations
+            if not isinstance(user, discord.Member):
+                if message.guild:
+                    member = message.guild.get_member(user.id)
+                    if member:
+                        user = member
+                    else:
+                        return
+                else:
+                    return
 
             # Find the actual reaction object from the already-fetched message
             reaction = None
@@ -229,6 +260,9 @@ class StarboardBot(commands.Bot):
 
 def main():
     """Main entry point."""
+    if not DISCORD_TOKEN:
+        logger.error("DISCORD_TOKEN is required but not set")
+        sys.exit(1)
     bot = StarboardBot()
     bot.run(DISCORD_TOKEN)
 
