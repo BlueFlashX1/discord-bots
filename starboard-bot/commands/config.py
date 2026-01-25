@@ -1,6 +1,7 @@
 """Configuration commands for Starboard bot."""
 
 import logging
+from typing import Optional
 
 from discord.ext import commands
 from utils.data_manager import DataManager
@@ -122,7 +123,12 @@ class ConfigCommands(commands.Cog):
         forum_channel_id = config.get("forum_channel_id")
         threshold = config.get("star_threshold", 1)
 
-        forum_channel = self.bot.get_channel(forum_channel_id)
+        forum_channel: Optional[discord.ForumChannel] = None
+        if forum_channel_id and isinstance(forum_channel_id, int):
+            channel = self.bot.get_channel(forum_channel_id)
+            if isinstance(channel, discord.ForumChannel):
+                forum_channel = channel
+
         channel_mention = (
             forum_channel.mention if forum_channel else f"<#{forum_channel_id}>"
         )
