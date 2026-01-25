@@ -166,14 +166,14 @@ class DataManager:
         self.set_guild_config(guild_id, forum_channel_id=channel_id)
 
     def get_star_threshold(self, guild_id: int) -> int:
-        """Get star threshold for a guild (default: 5)."""
+        """Get star threshold for a guild (default: 1)."""
         guild_config = self.get_guild_config(guild_id)
         if guild_config:
-            threshold = guild_config.get("star_threshold", 5)
+            threshold = guild_config.get("star_threshold", 1)
             logger.debug(f"Star threshold for guild {guild_id}: {threshold}")
             return threshold
-        logger.debug(f"Using default star threshold (5) for guild {guild_id}")
-        return 5
+        logger.debug(f"Using default star threshold (1) for guild {guild_id}")
+        return 1
 
     def set_star_threshold(self, guild_id: int, threshold: int):
         """Set star threshold for a guild."""

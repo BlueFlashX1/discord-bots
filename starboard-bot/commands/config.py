@@ -65,7 +65,7 @@ class ConfigCommands(commands.Cog):
 
     @app_commands.command(name="starboard-set-threshold")
     @app_commands.describe(
-        threshold="Minimum number of ⭐ reactions needed to post to starboard"
+        threshold="Minimum number of ⭐ reactions needed to post to starboard (default: 1)"
     )
     @app_commands.checks.has_permissions(manage_channels=True)
     async def set_threshold(
@@ -124,7 +124,7 @@ class ConfigCommands(commands.Cog):
             return
 
         forum_channel_id = config.get("forum_channel_id")
-        threshold = config.get("star_threshold", 5)
+        threshold = config.get("star_threshold", 1)
 
         forum_channel = self.bot.get_channel(forum_channel_id)
         channel_mention = (

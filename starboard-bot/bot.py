@@ -93,7 +93,7 @@ class StarboardBot(commands.Bot):
             data = DataManager()
             config = data.get_guild_config(guild.id)
             if config and config.get("forum_channel_id"):
-                logger.info(f"    ✓ Configured: Forum channel {config.get('forum_channel_id')}, Threshold: {config.get('star_threshold', 5)}")
+                logger.info(f"    ✓ Configured: Forum channel {config.get('forum_channel_id')}, Threshold: {config.get('star_threshold', 1)}")
             else:
                 logger.warning(f"    ⚠ Not configured: Use /starboard-set-channel to set up")
 
