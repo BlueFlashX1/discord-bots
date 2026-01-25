@@ -64,16 +64,9 @@ class StatsCommand(commands.Cog):
             await interaction.followup.send(embed=embed)
 
         except Exception as e:
-            error_type = type(e).__name__
-            error_module = getattr(type(e), "__module__", "")
             error_msg = str(e)
-            if error_module:
-                error_details = f"{error_module}.{error_type}: {error_msg}"
-            else:
-                error_details = f"{error_type}: {error_msg}"
-            logger.error(f"Error fetching stats: {error_details}")
-
             user_msg = error_msg if "asyncio" not in error_msg.lower() else "A temporary error occurred. Please try again."
+            logger.error(f"Error fetching stats: {user_msg}")
             embed = create_error_embed(f"Error fetching stats: {user_msg}")
             await interaction.followup.send(embed=embed)
 
