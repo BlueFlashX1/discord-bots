@@ -33,11 +33,20 @@ logger = logging.getLogger(__name__)
 
 # Bot configuration
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-CLIENT_ID = os.getenv("CLIENT_ID")
+CLIENT_ID_STR = os.getenv("CLIENT_ID")
 
 if not DISCORD_TOKEN:
     logger.error("DISCORD_TOKEN not found in environment variables")
     sys.exit(1)
+
+# Convert CLIENT_ID to int if provided, otherwise None
+CLIENT_ID: int | None = None
+if CLIENT_ID_STR:
+    try:
+        CLIENT_ID = int(CLIENT_ID_STR)
+    except ValueError:
+        logger.error(f"CLIENT_ID must be a valid integer, got: {CLIENT_ID_STR}")
+        sys.exit(1)
 
 
 class ReminderBot(commands.Bot):
@@ -47,11 +56,15 @@ class ReminderBot(commands.Bot):
         intents = discord.Intents.default()
         intents.message_content = True
 
-        super().__init__(
-            command_prefix="!",
-            intents=intents,
-            application_id=CLIENT_ID,
-        )
+        # Conditionally pass application_id only if CLIENT_ID is not None
+        kwargs = {
+            "command_prefix": "!",
+            "intents": intents,
+        }
+        if CLIENT_ID is not None:
+            kwargs["application_id"] = CLIENT_ID
+
+        super().__init__(**kwargs)
 
     async def setup_hook(self):
         """Called when the bot is starting up."""
