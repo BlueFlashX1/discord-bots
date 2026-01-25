@@ -55,8 +55,6 @@ class TagClassifier:
                         patterns.append(re.compile(pattern, re.IGNORECASE))
                     
                     self.tag_patterns[tag_name] = patterns
-                    
-                logger.debug(f"Loaded {len(self.tag_keywords)} tags with patterns")
         except (json.JSONDecodeError, KeyError, IOError) as e:
             logger.error(f"Error loading tags file: {e}", exc_info=True)
             self.tag_keywords = {}
