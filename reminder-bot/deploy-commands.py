@@ -17,9 +17,16 @@ logger = logging.getLogger(__name__)
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 CLIENT_ID = os.getenv("CLIENT_ID")
 
-if not DISCORD_TOKEN or not CLIENT_ID:
-    logger.error("DISCORD_TOKEN and CLIENT_ID required")
+if not DISCORD_TOKEN:
+    logger.error("DISCORD_TOKEN required")
     sys.exit(1)
+if not CLIENT_ID:
+    logger.error("CLIENT_ID required")
+    sys.exit(1)
+
+# Type narrowing: after checks, these are guaranteed to be str
+assert DISCORD_TOKEN is not None
+assert CLIENT_ID is not None
 
 
 async def deploy():

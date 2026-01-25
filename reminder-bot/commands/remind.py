@@ -1,6 +1,7 @@
 """Set reminder command."""
 
 from datetime import datetime
+from typing import Optional
 
 from discord.ext import commands
 from services.reminder_service import ReminderService
@@ -20,7 +21,11 @@ class RemindCommand(commands.Cog):
 
     def _get_reminder_service(self) -> ReminderService:
         """Get the reminder service from bot."""
-        return self.bot.reminder_service
+        # Use getattr for type-safe access (reminder_service set in on_ready)
+        reminder_service = getattr(self.bot, 'reminder_service', None)
+        if not reminder_service:
+            raise RuntimeError("Reminder service not initialized. Bot may not be ready yet.")
+        return reminder_service
 
     @app_commands.command(name="remind", description="Set a reminder")
     @app_commands.describe(
@@ -43,9 +48,9 @@ class RemindCommand(commands.Cog):
         interaction: discord.Interaction,
         message: str,
         time: str,
-        channel: discord.TextChannel = None,
-        recurring: str = None,
-        notes: str = None,
+        channel: Optional[discord.TextChannel] = None,
+        recurring: Optional[str] = None,
+        notes: Optional[str] = None,
     ):
         """Set a reminder."""
         await interaction.response.defer()

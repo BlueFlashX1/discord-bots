@@ -1,5 +1,7 @@
 """Set default channel command."""
 
+from typing import Optional
+
 from discord.ext import commands
 from utils.data_manager import DataManager
 from utils.embeds import create_error_embed, create_success_embed
@@ -26,7 +28,7 @@ class SetChannelCommand(commands.Cog):
     async def setchannel(
         self,
         interaction: discord.Interaction,
-        channel: discord.TextChannel = None,
+        channel: Optional[discord.TextChannel] = None,
     ):
         """Set default channel for reminders."""
         if not interaction.guild:
