@@ -1,0 +1,27 @@
+{
+  "name": "bots",
+  "version": "1.0.0",
+  "description": "Collection of Discord bots built with Node.js and Discord.js v14, using the Discobase framework.",
+  "main": "ecosystem.config.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BlueFlashX1/discord-bots.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/BlueFlashX1/discord-bots/issues"
+  },
+  "homepage": "https://github.com/BlueFlashX1/discord-bots#readme",
+  "dependencies": {
+    "discord.js": "^14.25.1"
+  }
+}
