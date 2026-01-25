@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from typing import List, Optional
+from typing import Dict, List, Optional, Set
 
 import discord
 from services.tag_classifier import TagClassifier
@@ -23,6 +23,10 @@ class StarboardService:
         # Cache forum channel and config for instant access
         self._forum_channel_cache: Dict[int, Optional[discord.ForumChannel]] = {}
         self._guild_config_cache: Dict[int, Optional[Dict]] = {}
+        
+        # Processing locks to prevent duplicate work
+        self._processing_messages: Set[int] = set()
+        self._processing_lock = asyncio.Lock()
         
         logger.info("StarboardService initialized")
 
@@ -92,29 +96,46 @@ class StarboardService:
             logger.info(f"Message {message.id} already posted to starboard, skipping")
             return
 
-        # Count star reactions (optimized: count directly from reactions)
-        star_count = sum(1 for r in message.reactions if str(r.emoji) == "⭐")
-        logger.info(f"Message {message.id} has {star_count} star reactions (threshold: {threshold})")
+        # Check if already processing this message (prevent duplicate work)
+        async with self._processing_lock:
+            if message.id in self._processing_messages:
+                logger.debug(f"Message {message.id} already being processed, skipping")
+                return
+            self._processing_messages.add(message.id)
 
-        # Check if threshold is met
-        if star_count >= threshold:
-            logger.info(
-                f"✅ Threshold met! Posting message {message.id} to starboard "
-                f"({star_count} >= {threshold})"
-            )
-            # Add ✅ reaction IMMEDIATELY for instant user feedback
-            try:
-                await message.add_reaction("✅")
-                logger.debug(f"Added ✅ reaction immediately for instant feedback")
-            except Exception as react_error:
-                logger.warning(f"Failed to add ✅ reaction (non-critical): {react_error}")
-            
-            # Post to starboard in background (non-blocking for instant response)
-            # Fire and forget - user already got instant feedback
-            asyncio.create_task(
-                self._post_to_starboard(message, forum_channel_id, star_count)
-            )
-            logger.debug(f"Posted starboard task to background (non-blocking)")
+        try:
+            # Count star reactions (optimized: count directly from reactions)
+            star_count = sum(1 for r in message.reactions if str(r.emoji) == "⭐")
+            logger.info(f"Message {message.id} has {star_count} star reactions (threshold: {threshold})")
+
+            # Check if threshold is met
+            if star_count >= threshold:
+                logger.info(
+                    f"✅ Threshold met! Posting message {message.id} to starboard "
+                    f"({star_count} >= {threshold})"
+                )
+                # Add ✅ reaction IMMEDIATELY for instant user feedback
+                try:
+                    await message.add_reaction("✅")
+                    logger.debug(f"Added ✅ reaction immediately for instant feedback")
+                except Exception as react_error:
+                    logger.warning(f"Failed to add ✅ reaction (non-critical): {react_error}")
+                
+                # Post to starboard in background (non-blocking for instant response)
+                # Use asyncio.create_task with error handling to prevent blocking
+                task = asyncio.create_task(
+                    self._post_to_starboard(message, forum_channel_id, star_count)
+                )
+                # Add done callback to remove from processing set
+                task.add_done_callback(lambda t: self._processing_messages.discard(message.id))
+                logger.debug(f"Posted starboard task to background (non-blocking)")
+            else:
+                # Not at threshold, remove from processing set immediately
+                self._processing_messages.discard(message.id)
+        except Exception as e:
+            # On any error, remove from processing set
+            self._processing_messages.discard(message.id)
+            raise
         else:
             logger.info(
                 f"⏳ Threshold not met yet: {star_count} < {threshold} "
@@ -157,13 +178,15 @@ class StarboardService:
     async def _post_to_starboard(
         self, message: discord.Message, forum_channel_id: int, star_count: int
     ):
-        """Post message to starboard forum channel."""
+        """Post message to starboard forum channel (runs in background task)."""
         logger.info(
             f"Posting message {message.id} to starboard (channel: {forum_channel_id}, "
             f"stars: {star_count})"
         )
 
         try:
+            # Yield control early to prevent blocking event loop
+            await asyncio.sleep(0)
             # Use cached forum channel if available (avoid repeated lookups)
             forum_channel = self._forum_channel_cache.get(forum_channel_id)
             if forum_channel is None:
@@ -290,6 +313,9 @@ class StarboardService:
 
             # ✅ reaction already added earlier for instant feedback, so skip here
             # (This prevents duplicate reactions if posting succeeds)
+            
+            # Remove from processing set on success
+            self._processing_messages.discard(message.id)
 
         except discord.Forbidden as e:
             logger.error(
@@ -332,6 +358,9 @@ class StarboardService:
                 logger.warning(
                     f"Failed to add ❌ reaction to message {message.id}: {react_error}"
                 )
+        finally:
+            # Always remove from processing set, even on error
+            self._processing_messages.discard(message.id)
 
     def _extract_message_content(self, message: discord.Message) -> str:
         """
