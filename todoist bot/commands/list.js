@@ -17,8 +17,8 @@ module.exports = {
         .addChoices(
           { name: 'Today', value: 'today' },
           { name: 'Tomorrow', value: 'tomorrow' },
-          { name: 'All', value: 'all' }
-        )
+          { name: 'All', value: 'all' },
+        ),
     ),
   async execute(interaction, client, todoistService) {
     await interaction.deferReply();
@@ -50,7 +50,7 @@ module.exports = {
       if (incompleteTasks.length === 0) {
         const emptyEmbed = createEmptyStateEmbed(
           title.replace('📋 ', ''),
-          '✅ **All tasks complete!** Great work! 🎉'
+          '✅ **All tasks complete!** Great work! 🎉',
         );
         await interaction.editReply({ embeds: [emptyEmbed] });
         return;
@@ -61,7 +61,7 @@ module.exports = {
         Object.keys(byProject).map(async (projectId) => {
           const name = await todoistService.getProjectName(projectId);
           return { projectId, name };
-        })
+        }),
       );
 
       // Create main embed
@@ -70,7 +70,8 @@ module.exports = {
         name: '📊 Summary',
         value: `⬜ **${incompleteTasks.length}** incomplete task(s)\n📁 **${projectNames.length}** project(s)`,
         inline: true,
-      });
+      },
+      );
 
       const embeds = [mainEmbed];
 

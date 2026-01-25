@@ -48,7 +48,7 @@ class StarboardBot(commands.Bot):
         intents.guilds = True  # Required for guild reactions
         intents.guild_messages = True  # Required to see messages with reactions
         intents.reactions = True  # EXPLICITLY enable reactions intent (required for on_raw_reaction_add)
-        
+
         logger.debug(f"Intents configured: {intents}")
         logger.debug(f"Intents value: guilds={intents.guilds}, guild_messages={intents.guild_messages}, reactions={intents.reactions}, message_content={intents.message_content}")
 
@@ -91,7 +91,7 @@ class StarboardBot(commands.Bot):
         """Called when the bot is ready."""
         logger.info(f"Bot connected: {self.user} (ID: {self.user.id})")
         logger.info(f"Bot is in {len(self.guilds)} guild(s)")
-        
+
         # Log intents status - verify reactions intent is enabled
         reactions_enabled = getattr(self.intents, 'reactions', False)
         logger.info(f"Intents enabled: reactions={reactions_enabled}, message_content={self.intents.message_content}, guilds={self.intents.guilds}, guild_messages={self.intents.guild_messages}")
@@ -114,24 +114,24 @@ class StarboardBot(commands.Bot):
         # Initialize services
         data = DataManager()
         self.starboard_service = StarboardService(self, data)
-        
+
         # Pre-warm forum channel cache for instant access
         await self.starboard_service.warm_forum_channel_cache()
 
         logger.info("Starboard service initialized and ready")
         logger.info("✅ Event handlers registered: on_reaction_add, on_raw_reaction_add, on_reaction_remove")
-        
+
         # Test that event handlers are registered
         if hasattr(self, 'on_reaction_add'):
             logger.info("✅ on_reaction_add method exists (for cached messages)")
         else:
             logger.error("❌ on_reaction_add method NOT FOUND!")
-        
+
         if hasattr(self, 'on_raw_reaction_add'):
             logger.info("✅ on_raw_reaction_add method exists (for all messages, including uncached)")
         else:
             logger.error("❌ on_raw_reaction_add method NOT FOUND!")
-    
+
     async def on_message(self, message: discord.Message):
         """Test handler to verify events are working."""
         # Ignore bot's own messages
@@ -162,19 +162,19 @@ class StarboardBot(commands.Bot):
         # Ignore bot's own reactions
         if payload.user_id == self.user.id:
             return
-        
+
         try:
             # Get the channel and message
             channel = self.get_channel(payload.channel_id)
             if not channel:
                 return
-            
+
             # Fetch the message
             try:
                 message = await channel.fetch_message(payload.message_id)
             except (discord.NotFound, discord.Forbidden):
                 return
-            
+
             # Get the user (optimize: use member from payload if available)
             user = payload.member
             if not user:
@@ -182,20 +182,20 @@ class StarboardBot(commands.Bot):
                     user = await self.fetch_user(payload.user_id)
                 except discord.NotFound:
                     return
-            
+
             if user.bot:
                 return
-            
+
             # Find the actual reaction object from the already-fetched message
             reaction = None
             for r in message.reactions:
                 if str(r.emoji) == str(payload.emoji):
                     reaction = r
                     break
-            
+
             if not reaction:
                 return
-            
+
             # Process immediately without blocking
             await self.starboard_service.handle_reaction_add(reaction, user)
         except Exception as e:

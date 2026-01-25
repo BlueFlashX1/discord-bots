@@ -1,12 +1,12 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { COLORS, createTaskListEmbed, createEmptyStateEmbed } = require('../utils/embeds');
+const { COLORS, createEmptyStateEmbed } = require('../utils/embeds');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('search')
     .setDescription('Search for tasks by content')
     .addStringOption((option) =>
-      option.setName('query').setDescription('Search query').setRequired(true)
+      option.setName('query').setDescription('Search query').setRequired(true),
     ),
   async execute(interaction, client, todoistService) {
     await interaction.deferReply();
@@ -16,13 +16,13 @@ module.exports = {
       const tasks = await todoistService.getAllTasks();
 
       const matchingTasks = tasks.filter(
-        (task) => task.content.toLowerCase().includes(query) && !task.isCompleted
+        (task) => task.content.toLowerCase().includes(query) && !task.isCompleted,
       );
 
       if (matchingTasks.length === 0) {
         const emptyEmbed = createEmptyStateEmbed(
           'Search Results',
-          `❌ No tasks found matching **"${query}"**\n\nTry a different search term or check your spelling.`
+          `❌ No tasks found matching **"${query}"**\n\nTry a different search term or check your spelling.`,
         );
         emptyEmbed.setColor(COLORS.warning);
         await interaction.editReply({ embeds: [emptyEmbed] });
@@ -59,7 +59,8 @@ module.exports = {
         name: '📋 Matching Tasks',
         value: tasksList,
         inline: false,
-      });
+      },
+      );
 
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
