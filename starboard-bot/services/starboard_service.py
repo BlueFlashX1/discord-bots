@@ -28,6 +28,15 @@ class StarboardService:
         self._processing_messages: Set[int] = set()
         self._processing_lock = asyncio.Lock()
         
+        # Pre-warm cache on startup to avoid first-reaction delay
+        # Load config and starboard entries into cache immediately
+        try:
+            _ = self.data.get_config()  # Warm config cache
+            _ = self.data.get_starboard_entries()  # Warm starboard cache
+            logger.debug("Cache pre-warmed on startup")
+        except Exception as e:
+            logger.warning(f"Failed to pre-warm cache: {e}")
+        
         logger.info("StarboardService initialized")
 
     async def handle_reaction_add(
@@ -91,19 +100,20 @@ class StarboardService:
             logger.warning(f"Forum channel not configured for guild {guild_id}")
             return
 
-        # Check if message already posted to starboard (fast cached check)
-        if self.data.is_message_starboarded(message.id):
-            logger.info(f"Message {message.id} already posted to starboard, skipping")
-            return
-
-        # Check if already processing this message (prevent duplicate work)
+        # CRITICAL: Check if already processing FIRST (before any file I/O)
         async with self._processing_lock:
             if message.id in self._processing_messages:
-                logger.debug(f"Message {message.id} already being processed, skipping")
+                logger.debug(f"Message {message.id} already being processed, skipping duplicate")
                 return
             self._processing_messages.add(message.id)
 
         try:
+            # Check if message already posted to starboard (fast cached check)
+            if self.data.is_message_starboarded(message.id):
+                logger.info(f"Message {message.id} already posted to starboard, skipping")
+                self._processing_messages.discard(message.id)
+                return
+
             # Count star reactions (optimized: count directly from reactions)
             star_count = sum(1 for r in message.reactions if str(r.emoji) == "⭐")
             logger.info(f"Message {message.id} has {star_count} star reactions (threshold: {threshold})")
@@ -134,6 +144,7 @@ class StarboardService:
                 self._processing_messages.discard(message.id)
         except Exception as e:
             # On any error, remove from processing set
+            logger.error(f"Error in handle_reaction_add: {e}", exc_info=True)
             self._processing_messages.discard(message.id)
             raise
         else:
