@@ -19,6 +19,11 @@ class StarboardService:
         self.bot = bot
         self.data = data_manager
         self.tag_classifier = TagClassifier()
+        
+        # Cache forum channel and config for instant access
+        self._forum_channel_cache: Dict[int, Optional[discord.ForumChannel]] = {}
+        self._guild_config_cache: Dict[int, Optional[Dict]] = {}
+        
         logger.info("StarboardService initialized")
 
     async def handle_reaction_add(
@@ -60,10 +65,15 @@ class StarboardService:
 
         logger.info(f"Processing star reaction in guild: {guild.name} ({guild.id})")
 
-        # Get configuration for this guild
-        config = self.data.get_guild_config(guild.id)
+        # Get configuration for this guild (cached)
+        guild_id = guild.id
+        config = self._guild_config_cache.get(guild_id)
+        if config is None:
+            config = self.data.get_guild_config(guild_id)
+            self._guild_config_cache[guild_id] = config
+        
         if not config:
-            logger.warning(f"No configuration found for guild {guild.id}")
+            logger.warning(f"No configuration found for guild {guild_id}")
             return
 
         forum_channel_id = config.get("forum_channel_id")
@@ -74,10 +84,10 @@ class StarboardService:
         )
 
         if not forum_channel_id:
-            logger.warning(f"Forum channel not configured for guild {guild.id}")
+            logger.warning(f"Forum channel not configured for guild {guild_id}")
             return
 
-        # Check if message already posted to starboard
+        # Check if message already posted to starboard (fast cached check)
         if self.data.is_message_starboarded(message.id):
             logger.info(f"Message {message.id} already posted to starboard, skipping")
             return
@@ -154,7 +164,12 @@ class StarboardService:
         )
 
         try:
-            forum_channel = self.bot.get_channel(forum_channel_id)
+            # Use cached forum channel if available (avoid repeated lookups)
+            forum_channel = self._forum_channel_cache.get(forum_channel_id)
+            if forum_channel is None:
+                forum_channel = self.bot.get_channel(forum_channel_id)
+                if forum_channel:
+                    self._forum_channel_cache[forum_channel_id] = forum_channel
 
             if not forum_channel:
                 logger.error(f"Forum channel {forum_channel_id} not found")
