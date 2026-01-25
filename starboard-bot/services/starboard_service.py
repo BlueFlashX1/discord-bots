@@ -128,6 +128,14 @@ class StarboardService:
 
             if not forum_channel:
                 logger.error(f"Forum channel {forum_channel_id} not found")
+                # React with ❌ to indicate error
+                try:
+                    await message.add_reaction("❌")
+                    logger.debug(f"Added ❌ reaction to message {message.id} (channel not found)")
+                except Exception as react_error:
+                    logger.warning(
+                        f"Failed to add ❌ reaction to message {message.id}: {react_error}"
+                    )
                 return
 
             if not isinstance(forum_channel, discord.ForumChannel):
@@ -135,6 +143,14 @@ class StarboardService:
                     f"Channel {forum_channel_id} is not a forum channel "
                     f"(type: {type(forum_channel).__name__})"
                 )
+                # React with ❌ to indicate error
+                try:
+                    await message.add_reaction("❌")
+                    logger.debug(f"Added ❌ reaction to message {message.id} (not forum channel)")
+                except Exception as react_error:
+                    logger.warning(
+                        f"Failed to add ❌ reaction to message {message.id}: {react_error}"
+                    )
                 return
 
             logger.debug(f"Forum channel found: {forum_channel.name} ({forum_channel.id})")
@@ -207,6 +223,15 @@ class StarboardService:
                 f"with tags: {tags} (applied: {[t.name for t in forum_tags]})"
             )
 
+            # React with ✅ to indicate successful posting
+            try:
+                await message.add_reaction("✅")
+                logger.debug(f"Added ✅ reaction to message {message.id}")
+            except Exception as react_error:
+                logger.warning(
+                    f"Failed to add ✅ reaction to message {message.id}: {react_error}"
+                )
+
         except discord.Forbidden as e:
             logger.error(
                 f"Bot lacks permission to create forum post in channel {forum_channel_id}. "
@@ -214,16 +239,40 @@ class StarboardService:
                 f"Read Message History. Error: {e}",
                 exc_info=True
             )
+            # React with ❌ to indicate error
+            try:
+                await message.add_reaction("❌")
+                logger.debug(f"Added ❌ reaction to message {message.id} (permission error)")
+            except Exception as react_error:
+                logger.warning(
+                    f"Failed to add ❌ reaction to message {message.id}: {react_error}"
+                )
         except discord.HTTPException as e:
             logger.error(
                 f"HTTP error creating forum post: {e.status} - {e.text}",
                 exc_info=True
             )
+            # React with ❌ to indicate error
+            try:
+                await message.add_reaction("❌")
+                logger.debug(f"Added ❌ reaction to message {message.id} (HTTP error)")
+            except Exception as react_error:
+                logger.warning(
+                    f"Failed to add ❌ reaction to message {message.id}: {react_error}"
+                )
         except Exception as e:
             logger.error(
                 f"Unexpected error posting to starboard: {e}",
                 exc_info=True
             )
+            # React with ❌ to indicate error
+            try:
+                await message.add_reaction("❌")
+                logger.debug(f"Added ❌ reaction to message {message.id} (unexpected error)")
+            except Exception as react_error:
+                logger.warning(
+                    f"Failed to add ❌ reaction to message {message.id}: {react_error}"
+                )
 
     def _create_standardized_title(self, content: str, tags: List[str]) -> str:
         """
