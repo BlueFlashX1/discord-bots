@@ -222,9 +222,23 @@ class StarboardService:
                 applied_tags=forum_tags,
             )
 
-            # ThreadWithMessage has a 'thread' attribute containing the actual Thread object
-            thread = thread_result.thread if hasattr(thread_result, 'thread') else thread_result
-            thread_id = thread.id
+            # ThreadWithMessage structure: try multiple ways to get thread ID
+            try:
+                # Try accessing thread attribute first (ThreadWithMessage.thread.id)
+                if hasattr(thread_result, 'thread'):
+                    thread_id = thread_result.thread.id
+                # Try direct id access (in case it's already a Thread)
+                elif hasattr(thread_result, 'id'):
+                    thread_id = thread_result.id
+                else:
+                    # Fallback: try to get it from the thread object
+                    thread = getattr(thread_result, 'thread', thread_result)
+                    thread_id = thread.id if hasattr(thread, 'id') else None
+                    if thread_id is None:
+                        raise AttributeError("Could not find thread ID in ThreadWithMessage object")
+            except Exception as id_error:
+                logger.error(f"Error accessing thread ID: {id_error}, thread_result type: {type(thread_result)}, attributes: {dir(thread_result)}")
+                raise
 
             logger.info(
                 f"Successfully created forum thread {thread_id} for message {message.id}"
