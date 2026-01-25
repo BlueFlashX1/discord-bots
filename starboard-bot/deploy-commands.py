@@ -39,11 +39,15 @@ async def deploy_commands():
     # These are only needed when the bot is running
     intents = discord.Intents.default()
 
-    bot = commands.Bot(
-        command_prefix="!",
-        intents=intents,
-        application_id=CLIENT_ID,
-    )
+    # Build kwargs - only include application_id if it's set
+    bot_kwargs = {
+        "command_prefix": "!",
+        "intents": intents,
+    }
+    if CLIENT_ID is not None:
+        bot_kwargs["application_id"] = CLIENT_ID
+
+    bot = commands.Bot(**bot_kwargs)
 
     @bot.event
     async def on_ready():

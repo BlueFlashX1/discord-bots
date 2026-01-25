@@ -60,11 +60,15 @@ class StarboardBot(commands.Bot):
         logger.debug(f"Intents configured: {intents}")
         logger.debug(f"Intents value: guilds={intents.guilds}, guild_messages={intents.guild_messages}, reactions={intents.reactions}, message_content={intents.message_content}")
 
-        super().__init__(
-            command_prefix="!",
-            intents=intents,
-            application_id=CLIENT_ID,
-        )
+        # Build kwargs - only include application_id if it's set
+        bot_kwargs = {
+            "command_prefix": "!",
+            "intents": intents,
+        }
+        if CLIENT_ID is not None:
+            bot_kwargs["application_id"] = CLIENT_ID
+
+        super().__init__(**bot_kwargs)
 
     async def setup_hook(self):
         """Called when the bot is starting up."""
