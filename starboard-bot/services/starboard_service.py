@@ -120,27 +120,19 @@ class StarboardService:
 
             # Check if threshold is met
             if star_count >= threshold:
-                # CRITICAL: Reserve entry IMMEDIATELY to prevent duplicate posts
-                try:
-                    self.data.reserve_starboard_entry(message.id, message.guild.id, message.channel.id)
-                except Exception as reserve_error:
-                    # If reservation fails, another instance already reserved it - skip silently
-                    self._processing_messages.discard(message.id)
-                    return
-                # Add ✅ reaction IMMEDIATELY for instant user feedback
+                # Add ✅ reaction IMMEDIATELY for instant user feedback (before any blocking ops)
                 try:
                     await message.add_reaction("✅")
                 except Exception:
                     pass  # Non-critical, skip logging
                 
                 # Post to starboard in background (non-blocking for instant response)
-                # Use asyncio.create_task with error handling to prevent blocking
+                # Reservation happens inside _post_to_starboard to avoid blocking here
                 task = asyncio.create_task(
                     self._post_to_starboard(message, forum_channel_id, star_count)
                 )
                 # Add done callback to remove from processing set
                 task.add_done_callback(lambda t: self._processing_messages.discard(message.id))
-                logger.debug(f"Posted starboard task to background (non-blocking)")
             else:
                 # Not at threshold, remove from processing set immediately
                 self._processing_messages.discard(message.id)
@@ -195,6 +187,21 @@ class StarboardService:
         try:
             # Yield control early to prevent blocking event loop
             await asyncio.sleep(0)
+            
+            # CRITICAL: Reserve entry NOW (in background) to prevent duplicate posts
+            # This happens in background so it doesn't block the reaction handler
+            try:
+                # Run file write in thread pool to avoid blocking event loop
+                await asyncio.to_thread(
+                    self.data.reserve_starboard_entry,
+                    message.id,
+                    message.guild.id,
+                    message.channel.id
+                )
+            except Exception as reserve_error:
+                # If reservation fails, another instance already reserved it - skip
+                self._processing_messages.discard(message.id)
+                return
             # Use cached forum channel if available (avoid repeated lookups)
             forum_channel = self._forum_channel_cache.get(forum_channel_id)
             if forum_channel is None:
