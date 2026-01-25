@@ -132,17 +132,17 @@ class RepoMonitor:
 
                 # Rate limiting - sleep between checks
                 await asyncio.sleep(2)
+
+            except Exception as e:
+                error_msg = str(e)
+                user_msg = error_msg if "asyncio" not in error_msg.lower() else "Error monitoring repository"
+                logger.error(f"Error monitoring {repo_name}: {user_msg}")
         
         # Update global last check time
         status = self.data.get_monitor_status()
         status["last_check"] = datetime.utcnow().isoformat()
         status_file = self.data.data_dir / "monitor_status.json"
         self.data._save_json(status_file, status)
-
-            except Exception as e:
-                error_msg = str(e)
-                user_msg = error_msg if "asyncio" not in error_msg.lower() else "Error monitoring repository"
-                logger.error(f"Error monitoring {repo_name}: {user_msg}")
 
     @monitor_repos.before_loop
     async def before_monitor_repos(self):
