@@ -16,22 +16,24 @@ import discord
 # Load environment variables
 load_dotenv()
 
-# Configure logging (minimal, no verbose debugging)
+# Configure logging (strategic debugging, no verbose spam)
 logging.basicConfig(
-    level=logging.WARNING,  # Only warnings and errors
-    format="%(levelname)s - %(message)s",
+    level=logging.INFO,  # INFO for critical operations, WARNING/ERROR for issues
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 # Suppress discord.py verbose logging
 logging.getLogger("discord").setLevel(logging.WARNING)
 logging.getLogger("discord.http").setLevel(logging.WARNING)
 logging.getLogger("discord.gateway").setLevel(logging.WARNING)
+# Suppress aiohttp unclosed connector warnings
+logging.getLogger("aiohttp").setLevel(logging.ERROR)
 
 logger = logging.getLogger(__name__)
 
 # Bot configuration
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 CLIENT_ID = os.getenv("CLIENT_ID")
-GUILD_ID = os.getenv("GUILD_ID")
 
 if not DISCORD_TOKEN:
     logger.error("DISCORD_TOKEN not found in environment variables")
@@ -61,19 +63,15 @@ class ReminderBot(commands.Bot):
                     cog_name = f"commands.{file.stem}"
                     await self.load_extension(cog_name)
                 except Exception as e:
-                    print(f"⚠️  Failed to load {file.stem}: {e}")
+                    logger.error(f"Failed to load cog {file.stem}: {e}")
 
-        # Sync commands
-        if GUILD_ID:
-            guild = discord.Object(id=int(GUILD_ID))
-            self.tree.copy_global_to(guild=guild)
-            await self.tree.sync(guild=guild)
-        else:
-            await self.tree.sync()
+        # Sync commands globally (no guild-specific syncing needed)
+        await self.tree.sync()
+        logger.info("Synced global commands")
 
     async def on_ready(self):
         """Called when the bot is ready."""
-        print(f"✅ {self.user} connected to Discord ({len(self.guilds)} guild(s))")
+        logger.info(f"Bot connected: {self.user} ({len(self.guilds)} guild(s))")
 
         # Initialize services
         data = DataManager()
@@ -81,7 +79,17 @@ class ReminderBot(commands.Bot):
 
         # Start reminder checker
         self.reminder_service.start()
-        print("✅ Reminder service started")
+        logger.info("Reminder service started")
+
+    async def close(self):
+        """Clean up resources when bot is closing."""
+        try:
+            if hasattr(self, 'reminder_service'):
+                self.reminder_service.stop()
+        except Exception as e:
+            logger.error(f"Error stopping reminder service: {e}")
+        finally:
+            await super().close()
 
     async def on_command_error(self, ctx, error):
         """Handle command errors."""
@@ -100,7 +108,7 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("Bot stopped by user")
+        logger.info("Bot stopped by user")
     except Exception as e:
-        print(f"Fatal error: {e}")
+        logger.critical(f"Fatal error: {e}", exc_info=True)
         sys.exit(1)

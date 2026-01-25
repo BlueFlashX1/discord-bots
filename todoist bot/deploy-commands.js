@@ -23,12 +23,14 @@ const rest = new REST().setToken(process.env.DISCORD_TOKEN);
   try {
     console.log(`Started refreshing ${commands.length} application (/) commands.`);
 
+    // Deploy globally (available in all servers)
     const data = await rest.put(
-      Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, process.env.DISCORD_GUILD_ID),
+      Routes.applicationCommands(process.env.DISCORD_CLIENT_ID),
       { body: commands },
     );
 
-    console.log(`Successfully reloaded ${data.length} application (/) commands.`);
+    console.log(`Successfully reloaded ${data.length} application (/) commands globally.`);
+    console.log('Commands will be available in all servers after a few minutes.');
   } catch (error) {
     console.error(error);
   }

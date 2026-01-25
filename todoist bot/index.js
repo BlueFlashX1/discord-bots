@@ -5,6 +5,29 @@ const path = require('path');
 const TodoistService = require('./services/todoist');
 const SyncService = require('./services/sync');
 const DailyOverview = require('./services/dailyOverview');
+const Logger = require('../utils/logger');
+const { validateEnv, validators } = require('../utils/envValidator');
+
+// Initialize logger
+const logger = new Logger('todoist-bot');
+
+// Validate environment variables
+try {
+  validateEnv({
+    DISCORD_TOKEN: {
+      required: true,
+      validator: validators.discordToken,
+      errorMessage: 'DISCORD_TOKEN is required and must be a valid Discord bot token',
+    },
+    TODOIST_API_TOKEN: {
+      required: true,
+      errorMessage: 'TODOIST_API_TOKEN is required',
+    },
+  }, logger);
+} catch (error) {
+  logger.error('Environment validation failed', error);
+  process.exit(1);
+}
 
 // Create Discord client
 const client = new Client({
@@ -34,9 +57,9 @@ if (fs.existsSync(commandsPath)) {
 
     if ('data' in command && 'execute' in command) {
       client.commands.set(command.data.name, command);
-      console.log(`Loaded command: ${command.data.name}`);
+      logger.debug(`Loaded command: ${command.data.name}`);
     } else {
-      console.warn(`Command at ${filePath} is missing required "data" or "execute" property`);
+      logger.warn(`Command at ${filePath} is missing required "data" or "execute" property`);
     }
   }
 }
@@ -72,15 +95,16 @@ syncService.start();
 
 // Error handling
 process.on('unhandledRejection', (error) => {
-  console.error('Unhandled promise rejection:', error);
+  logger.error('Unhandled promise rejection', error);
 });
 
 // Graceful shutdown handler
 async function gracefulShutdown() {
-  console.log('\nShutting down gracefully...');
+  logger.info('Shutting down gracefully...');
 
   // Stop sync service
   syncService.stop();
+  logger.info('Sync service stopped');
 
   // Destroy Discord client
   client.destroy();
@@ -91,4 +115,9 @@ process.on('SIGINT', gracefulShutdown);
 process.on('SIGTERM', gracefulShutdown);
 
 // Login to Discord
-client.login(process.env.DISCORD_TOKEN);
+client.login(process.env.DISCORD_TOKEN)
+  .then(() => logger.info('Bot is logging in...'))
+  .catch((error) => {
+    logger.error('Failed to login', error);
+    process.exit(1);
+  });

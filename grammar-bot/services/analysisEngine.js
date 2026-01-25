@@ -38,19 +38,24 @@ class AnalysisEngine {
       // Check grammar with AI
       const result = await this.aiGrammar.checkGrammar(text);
 
-      // Extract error types
-      const errorTypes = [...new Set(result.errors.map((e) => e.type))];
+      // Extract error types - COUNT ALL INSTANCES, not just unique types
+      // This ensures accurate statistics: if there are 3 spelling errors, count all 3
+      const errorTypes = result.errors.map((e) => e.type); // Keep all instances, not unique
 
       // Record in daily stats (if available)
       const DailyStatsModel = getDailyStats();
       if (DailyStatsModel) {
         try {
           const stats = await DailyStatsModel.getTodayStats();
+          // Pass all error type instances (not just unique) for accurate counting
           await stats.recordMessageCheck(userId, result.hasErrors, result.errorCount, errorTypes);
         } catch (error) {
           // Silently fail if DailyStats unavailable
         }
       }
+
+      // Return unique error types for display purposes, but keep full count for stats
+      const uniqueErrorTypes = [...new Set(errorTypes)];
 
       return {
         shouldRespond: result.hasErrors,
@@ -59,7 +64,8 @@ class AnalysisEngine {
         errors: result.errors,
         correctedText: result.correctedText,
         qualityScore: result.qualityScore,
-        errorTypes,
+        errorTypes: uniqueErrorTypes, // For display/UI purposes
+        errorTypesAll: errorTypes, // Full list with all instances for accurate stats
         metadata: result.metadata,
       };
     } catch (error) {
@@ -341,7 +347,7 @@ class AnalysisEngine {
   }
 
   /**
-   * Get error type statistics
+   * Get error type statistics with trend analysis
    */
   getErrorTypeStats(user) {
     if (!user.errorsByType || typeof user.errorsByType !== 'object') {
@@ -354,14 +360,20 @@ class AnalysisEngine {
       return [];
     }
 
-    return Object.entries(user.errorsByType)
+    // Calculate statistics for each error type
+    const stats = Object.entries(user.errorsByType)
       .filter(([_, count]) => count > 0)
       .map(([type, count]) => ({
-        type,
+        type: this.capitalizeFirst(type),
         count,
         percentage: ((count / total) * 100).toFixed(1),
+        // Add trend indicator based on percentage
+        isDominant: (count / total) * 100 > 40, // More than 40% of all errors
+        isSignificant: (count / total) * 100 > 20, // More than 20% of all errors
       }))
       .sort((a, b) => b.count - a.count);
+
+    return stats;
   }
 }
 

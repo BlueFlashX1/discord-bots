@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 CLIENT_ID = os.getenv("CLIENT_ID")
-GUILD_ID = os.getenv("GUILD_ID")
 
 if not DISCORD_TOKEN or not CLIENT_ID:
     logger.error("DISCORD_TOKEN and CLIENT_ID required")
@@ -32,14 +31,9 @@ async def deploy():
     async def on_ready():
         logger.info(f"Logged in as {bot.user}")
 
-        if GUILD_ID:
-            guild = discord.Object(id=int(GUILD_ID))
-            tree.copy_global_to(guild=guild)
-            await tree.sync(guild=guild)
-            logger.info(f"Synced commands to guild {GUILD_ID}")
-        else:
-            await tree.sync()
-            logger.info("Synced global commands")
+        # Sync commands globally (no guild-specific syncing needed)
+        await tree.sync()
+        logger.info("Synced global commands")
 
         await bot.close()
 

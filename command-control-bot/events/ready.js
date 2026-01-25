@@ -23,19 +23,13 @@ module.exports = {
     try {
       console.log(`Registering ${commands.length} slash command(s)...`);
 
-      if (process.env.GUILD_ID) {
-        await rest.put(
-          Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
-          { body: commands }
-        );
-        console.log(`Registered commands to guild ${process.env.GUILD_ID}`);
-      } else {
-        await rest.put(
-          Routes.applicationCommands(process.env.CLIENT_ID),
-          { body: commands }
-        );
-        console.log('Registered commands globally');
-      }
+      // Deploy globally (available in all servers)
+      await rest.put(
+        Routes.applicationCommands(process.env.CLIENT_ID),
+        { body: commands }
+      );
+      console.log('Registered commands globally');
+      console.log('Commands will be available in all servers after a few minutes.');
     } catch (error) {
       console.error('Error registering commands:', error);
     }

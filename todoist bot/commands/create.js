@@ -1,21 +1,25 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { COLORS, createTaskEmbed, PRIORITY_EMOJI, PRIORITY_NAMES } = require('../utils/embeds');
+const Logger = require('../../utils/logger');
+const { retryDiscordAPI } = require('../../utils/retry');
+
+const logger = new Logger('todoist-create');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('create')
     .setDescription('Create a new task in Todoist')
     .addStringOption((option) =>
-      option.setName('content').setDescription('Task content').setRequired(true)
+      option.setName('content').setDescription('Task content').setRequired(true),
     )
     .addStringOption((option) =>
-      option.setName('due').setDescription('Due date').setAutocomplete(true)
+      option.setName('due').setDescription('Due date').setAutocomplete(true),
     )
     .addStringOption((option) =>
-      option.setName('project').setDescription('Select a project (optional)').setAutocomplete(true)
+      option.setName('project').setDescription('Select a project (optional)').setAutocomplete(true),
     )
     .addStringOption((option) =>
-      option.setName('labels').setDescription('Select labels (optional)').setAutocomplete(true)
+      option.setName('labels').setDescription('Select labels (optional)').setAutocomplete(true),
     )
     .addStringOption((option) =>
       option
@@ -25,8 +29,8 @@ module.exports = {
           { name: 'Normal', value: '1' },
           { name: 'High', value: '2' },
           { name: 'Very High', value: '3' },
-          { name: 'Urgent', value: '4' }
-        )
+          { name: 'Urgent', value: '4' },
+        ),
     ),
   async autocomplete(interaction, client, todoistService) {
     const focusedOption = interaction.options.getFocused(true);
@@ -36,7 +40,7 @@ module.exports = {
         const projects = await todoistService.getProjects();
         const filtered = projects
           .filter((project) =>
-            project.name.toLowerCase().includes(focusedOption.value.toLowerCase())
+            project.name.toLowerCase().includes(focusedOption.value.toLowerCase()),
           )
           .slice(0, 25)
           .map((project) => ({
@@ -44,10 +48,16 @@ module.exports = {
             value: project.name,
           }));
 
-        await interaction.respond(filtered);
+        await retryDiscordAPI(
+          () => interaction.respond(filtered),
+          {
+            operationName: 'Project autocomplete',
+            logger,
+          }
+        );
       } catch (error) {
-        console.error('Error in create project autocomplete:', error);
-        await interaction.respond([]);
+        logger.error('Error in create project autocomplete', error);
+        await interaction.respond([]).catch(() => {});
       }
     } else if (focusedOption.name === 'labels') {
       try {
@@ -60,10 +70,16 @@ module.exports = {
             value: label.name,
           }));
 
-        await interaction.respond(filtered);
+        await retryDiscordAPI(
+          () => interaction.respond(filtered),
+          {
+            operationName: 'Labels autocomplete',
+            logger,
+          }
+        );
       } catch (error) {
-        console.error('Error in create labels autocomplete:', error);
-        await interaction.respond([]);
+        logger.error('Error in create labels autocomplete', error);
+        await interaction.respond([]).catch(() => {});
       }
     } else if (focusedOption.name === 'due') {
       const commonDates = [
@@ -74,7 +90,7 @@ module.exports = {
       ];
 
       const filtered = commonDates.filter((date) =>
-        date.name.toLowerCase().includes(focusedOption.value.toLowerCase())
+        date.name.toLowerCase().includes(focusedOption.value.toLowerCase()),
       );
 
       await interaction.respond(filtered);
@@ -113,7 +129,7 @@ module.exports = {
           taskData.projectId = project.id;
         } else {
           await interaction.editReply(
-            `❌ Project "${projectName}" not found. Task created without project.`
+            `❌ Project "${projectName}" not found. Task created without project.`,
           );
         }
       }
@@ -138,17 +154,17 @@ module.exports = {
 
       const task = await todoistService.createTask(content, taskData);
 
-      // Get project name if exists
-      let projectName = null;
-      if (task.projectId) {
-        projectName = await todoistService.getProjectName(task.projectId);
+      // Get project name if exists (reuse existing projectName from input or fetch from task)
+      let finalProjectName = projectName;
+      if (!finalProjectName && task.projectId) {
+        finalProjectName = await todoistService.getProjectName(task.projectId);
       }
 
       const embed = createTaskEmbed(task, '✅ Task Created Successfully', COLORS.success);
 
       // Add project field if exists
-      if (projectName) {
-        embed.addFields({ name: '📁 Project', value: projectName, inline: true });
+      if (finalProjectName) {
+        embed.addFields({ name: '📁 Project', value: finalProjectName, inline: true });
       }
 
       await interaction.editReply({ embeds: [embed] });
@@ -166,7 +182,10 @@ module.exports = {
         }
       }
     } catch (error) {
-      console.error('Error in create command:', error);
+      logger.error('Error in create command', error, {
+        userId: interaction.user?.id,
+        channelId: interaction.channel?.id,
+      });
       await interaction.editReply('❌ Error creating task. Please try again.');
     }
   },

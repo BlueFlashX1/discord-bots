@@ -6,6 +6,29 @@ const YouTubeMonitor = require('./services/youtubeMonitor');
 const YouTubeService = require('./services/youtubeService');
 const ApiQuotaManager = require('./services/apiQuotaManager');
 const ChannelManager = require('./services/channelManager');
+const Logger = require('../utils/logger');
+const { validateEnv, validators } = require('../utils/envValidator');
+
+// Initialize logger
+const logger = new Logger('youtube-monitor-bot');
+
+// Validate environment variables
+try {
+  validateEnv({
+    DISCORD_TOKEN: {
+      required: true,
+      validator: validators.discordToken,
+      errorMessage: 'DISCORD_TOKEN is required and must be a valid Discord bot token',
+    },
+    YOUTUBE_API_KEY: {
+      required: true,
+      errorMessage: 'YOUTUBE_API_KEY is required',
+    },
+  }, logger);
+} catch (error) {
+  logger.error('Environment validation failed', error);
+  process.exit(1);
+}
 
 const client = new Client({
   intents: [
@@ -40,9 +63,9 @@ if (fs.existsSync(commandsPath)) {
 
     if ('data' in command && 'execute' in command) {
       client.commands.set(command.data.name, command);
-      console.log(`Loaded command: ${command.data.name}`);
+      logger.debug(`Loaded command: ${command.data.name}`);
     } else {
-      console.warn(`Command at ${filePath} is missing required "data" or "execute" property`);
+      logger.warn(`Command at ${filePath} is missing required "data" or "execute" property`);
     }
   }
 }
@@ -61,29 +84,30 @@ if (fs.existsSync(eventsPath)) {
     } else {
       client.on(event.name, (...args) => event.execute(...args, client));
     }
-    console.log(`Loaded event: ${event.name}`);
+    logger.debug(`Loaded event: ${event.name}`);
   }
 }
 
 // Error handling
 process.on('unhandledRejection', (error) => {
-  console.error('Unhandled promise rejection:', error);
+  logger.error('Unhandled promise rejection', error);
 });
 
 // Login
 client
   .login(process.env.DISCORD_TOKEN)
-  .then(() => console.log('Bot is logging in...'))
+  .then(() => logger.info('Bot is logging in...'))
   .catch((error) => {
-    console.error('Failed to login:', error);
+    logger.error('Failed to login', error);
     process.exit(1);
   });
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
-  console.log('\nShutting down...');
+  logger.info('Shutting down...');
   if (youtubeMonitor) {
     await youtubeMonitor.stop();
+    logger.info('YouTube monitor stopped');
   }
   client.destroy();
   process.exit(0);

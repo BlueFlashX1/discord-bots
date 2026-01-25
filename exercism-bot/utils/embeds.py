@@ -1,7 +1,8 @@
 """Discord embed utilities for Exercism bot."""
 
+from typing import Dict, Optional
+
 import discord
-from typing import Optional, Dict
 
 
 def create_exercise_embed(
@@ -39,7 +40,7 @@ def create_progress_embed(
 ) -> discord.Embed:
     """Create an embed for user progress."""
     embed = discord.Embed(
-        title=f"📊 Exercism Progress",
+        title="📊 Exercism Progress",
         description=f"**User:** {username}",
         color=discord.Color.green(),
     )
@@ -98,9 +99,18 @@ def create_success_embed(message: str) -> discord.Embed:
 
 
 def create_daily_problem_embed(
-    exercise: str, track: str, description: Optional[str] = None
+    exercise: str,
+    track: str,
+    description: Optional[str] = None,
+    exercise_path: Optional[str] = None,
+    readme: Optional[str] = None,
+    starter_code: Optional[str] = None,
+    starter_file: Optional[str] = None,
+    test_file: Optional[str] = None,
+    cli_installed: bool = True,
+    cli_message: Optional[str] = None,
 ) -> discord.Embed:
-    """Create an embed for daily problem."""
+    """Create an embed for daily problem with full details."""
     embed = discord.Embed(
         title="📅 Daily Coding Problem",
         description=f"**Today's Challenge:** {exercise.replace('-', ' ').title()}",
@@ -108,14 +118,77 @@ def create_daily_problem_embed(
     )
 
     embed.add_field(name="Track", value=track.title(), inline=True)
-    embed.add_field(
-        name="Action",
-        value=f"Use `/fetch {exercise} {track}` to download",
-        inline=False,
-    )
 
-    if description:
-        embed.add_field(name="Description", value=description[:500], inline=False)
+    # CLI installation status
+    if not cli_installed:
+        embed.add_field(
+            name="⚠️ CLI Not Found",
+            value="Exercism CLI is not installed on the server.",
+            inline=False,
+        )
+        embed.add_field(
+            name="📥 Installation Help",
+            value=(
+                "**To install Exercism CLI:**\n"
+                "1. Visit: https://exercism.org/cli-walkthrough\n"
+                "2. Follow instructions for your OS\n"
+                "3. Run `/check` to verify installation\n\n"
+                f"**Manual download:** Use `/fetch {exercise} {track}` after installing CLI"
+            ),
+            inline=False,
+        )
+        if cli_message:
+            embed.add_field(name="Error Details", value=cli_message[:200], inline=False)
+    else:
+        # Problem description
+        if description:
+            # Clean up description (remove markdown links, format nicely)
+            import re
+
+            # Remove markdown links but keep text: [text](url) -> text
+            clean_desc = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", description)
+            # Remove standalone URLs
+            clean_desc = re.sub(r"https?://[^\s]+", "", clean_desc)
+            # Clean up extra whitespace
+            clean_desc = " ".join(clean_desc.split())
+            # Limit to 1000 chars for Discord embed field limit
+            if len(clean_desc) > 1000:
+                clean_desc = clean_desc[:997] + "..."
+            embed.add_field(name="📝 Description", value=clean_desc, inline=False)
+
+        # Exercise path
+        if exercise_path:
+            embed.add_field(
+                name="📁 Location",
+                value=f"`{exercise_path}`",
+                inline=False,
+            )
+
+        # Starter code preview
+        if starter_code and starter_file:
+            code_preview = starter_code
+            if len(code_preview) > 500:
+                code_preview = code_preview[:497] + "..."
+            embed.add_field(
+                name=f"💻 Starter Code ({starter_file})",
+                value=f"```{track}\n{code_preview}\n```",
+                inline=False,
+            )
+
+        # Test file info
+        if test_file:
+            embed.add_field(
+                name="🧪 Test File",
+                value=f"`{test_file}` - Run tests to verify your solution",
+                inline=False,
+            )
+
+        # Next steps
+        next_steps = "1. Open the exercise directory\n2. Read the README.md for full instructions\n3. Write your solution\n4. Test with `/submit`"
+        if not exercise_path:
+            next_steps = f"Use `/fetch {exercise} {track}` to download the exercise"
+
+        embed.add_field(name="💡 Next Steps", value=next_steps, inline=False)
 
     embed.set_footer(text="Good luck! 🚀")
     return embed

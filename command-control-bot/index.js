@@ -5,7 +5,12 @@ const path = require('path');
 const configManager = require('./services/configManager');
 const scheduler = require('./services/scheduler');
 const statusUpdater = require('./services/statusUpdater');
-const logger = require('./services/logger');
+const serviceLogger = require('./services/logger');
+const Logger = require('../utils/logger');
+const { validateEnv, validators } = require('../utils/envValidator');
+
+// Initialize structured logger
+const logger = new Logger('command-control-bot');
 
 // Create Discord client
 const client = new Client({
@@ -19,18 +24,32 @@ const client = new Client({
 // Initialize command collection
 client.commands = new Collection();
 
+// Validate environment variables
+try {
+  validateEnv({
+    DISCORD_TOKEN: {
+      required: true,
+      validator: validators.discordToken,
+      errorMessage: 'DISCORD_TOKEN is required and must be a valid Discord bot token',
+    },
+  }, logger);
+} catch (error) {
+  logger.error('Environment validation failed', error);
+  process.exit(1);
+}
+
 // Load and validate config on startup
 try {
   configManager.loadConfig();
-  console.log('Config loaded successfully');
+  logger.info('Config loaded successfully');
 } catch (error) {
-  console.error('Failed to load config:', error.message);
+  logger.error('Failed to load config', error);
   process.exit(1);
 }
 
 // Start config file watcher for hot-reload
 configManager.startWatching((newConfig) => {
-  console.log(`Config hot-reloaded: ${newConfig.commands.length} commands`);
+  logger.info(`Config hot-reloaded: ${newConfig.commands.length} commands`);
 });
 
 // Load commands
@@ -44,9 +63,9 @@ if (fs.existsSync(commandsPath)) {
 
     if ('data' in command && 'execute' in command) {
       client.commands.set(command.data.name, command);
-      console.log(`Loaded command: ${command.data.name}`);
+      logger.debug(`Loaded command: ${command.data.name}`);
     } else {
-      console.warn(`Command at ${filePath} is missing required "data" or "execute" property`);
+      logger.warn(`Command at ${filePath} is missing required "data" or "execute" property`);
     }
   }
 }
@@ -80,15 +99,15 @@ client.once('ready', () => {
 
   if (channelId) {
     scheduler.setDiscordClient(client, channelId);
-    console.log(`Scheduler notifications will be sent to channel ${channelId}`);
+    logger.info(`Scheduler notifications will be sent to channel ${channelId}`);
   } else {
-    console.log('No notification channel set - use /settings channel to configure');
+    logger.info('No notification channel set - use /settings channel to configure');
   }
 });
 
 // Graceful shutdown
 async function gracefulShutdown() {
-  console.log('\nShutting down gracefully...');
+  logger.info('Shutting down gracefully...');
 
   // Stop all scheduled jobs
   scheduler.stopAll();
@@ -115,6 +134,6 @@ process.on('SIGTERM', gracefulShutdown);
 
 // Login to Discord
 client.login(process.env.DISCORD_TOKEN).catch((error) => {
-  console.error('Failed to login:', error);
+  logger.error('Failed to login', error);
   process.exit(1);
 });

@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# Check MonitoRSS activity and help test article posting
+VPS_HOST="root@64.23.179.177"
+SSH_KEY="$HOME/.ssh/id_rsa_deploy"
+API_URL="http://localhost:8000"
+
+echo "=========================================="
+echo "MonitoRSS Activity Check & Test Guide"
+echo "=========================================="
+echo ""
+
+# Check API health
+echo "🔍 Checking MonitoRSS API..."
+HEALTH=$(ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$VPS_HOST" "curl -s $API_URL/api/v1/health 2>/dev/null")
+if [ "$HEALTH" = '{"ok":1}' ]; then
+    echo "✅ MonitoRSS API is accessible"
+else
+    echo "❌ MonitoRSS API not responding"
+    exit 1
+fi
+
+echo ""
+echo "=========================================="
+echo "How to Test Article Posting:"
+echo "=========================================="
+echo ""
+echo "Method 1: Check Your Discord Channels (Easiest)"
+echo "  → MonitoRSS may already be posting articles automatically"
+echo "  → Check your Discord server channels for recent RSS feed posts"
+echo "  → If you see posts, MonitoRSS is working!"
+echo ""
+echo "Method 2: Build Frontend on macOS & Sync to VPS"
+echo "  → Build on your Mac (more memory available):"
+echo "    cd ~/Documents/DEVELOPMENT/discord/bots/news-bots/MonitoRSS/services/backend-api/client"
+echo "    npm install"
+echo "    npm run build"
+echo "  → Then sync the build directory to VPS"
+echo ""
+echo "Method 3: Use API Directly (Requires Feed ID & Auth)"
+echo "  → Need: Discord OAuth token, Feed ID, Channel ID"
+echo "  → Endpoint: POST $API_URL/api/v1/user-feeds/{feedId}/test-send"
+echo ""
+echo "=========================================="
+echo "Current Service Status:"
+echo "=========================================="
+ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$VPS_HOST" "pm2 list | grep monitorss" 2>/dev/null
+echo ""
