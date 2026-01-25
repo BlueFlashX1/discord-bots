@@ -65,49 +65,27 @@ class TagClassifier:
     def classify(self, content: str) -> List[str]:
         """
         Classify message content and return list of applicable tags.
-        Uses word boundary matching to avoid false positives.
+        Optimized for speed: uses simple string matching instead of regex.
         
         Args:
             content: Message content to classify
             
         Returns:
-            List of tag names that match the content, sorted by relevance
+            List of tag names that match the content
         """
         if not content or not isinstance(content, str):
-            logger.debug("Empty or invalid content provided for classification")
             return []
 
         content_lower = content.lower()
         matched_tags = []
-        tag_scores = {}  # Track match counts for scoring
 
-        logger.debug(f"Classifying content (length: {len(content)} chars)")
+        # Fast string matching (no regex overhead)
+        for tag_name, keywords in self.tag_keywords.items():
+            for keyword in keywords:
+                if keyword in content_lower:
+                    matched_tags.append(tag_name)
+                    break  # Found match, move to next tag
 
-        for tag_name, patterns in self.tag_patterns.items():
-            match_count = 0
-            for pattern in patterns:
-                matches = pattern.findall(content_lower)
-                if matches:
-                    match_count += len(matches)
-                    logger.debug(
-                        f"Tag '{tag_name}' matched pattern '{pattern.pattern}' "
-                        f"({len(matches)} times)"
-                    )
-            
-            if match_count > 0:
-                matched_tags.append(tag_name)
-                tag_scores[tag_name] = match_count
-
-        # Sort by match count (most matches first), then alphabetically
-        matched_tags = sorted(
-            matched_tags,
-            key=lambda t: (tag_scores.get(t, 0), t),
-            reverse=True
-        )
-
-        logger.info(
-            f"Classified content: {len(matched_tags)} tags matched - {matched_tags}"
-        )
         return matched_tags
 
     def get_available_tags(self) -> List[str]:

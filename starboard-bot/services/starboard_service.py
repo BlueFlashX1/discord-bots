@@ -117,32 +117,21 @@ class StarboardService:
 
             # Count star reactions (optimized: count directly from reactions)
             star_count = sum(1 for r in message.reactions if str(r.emoji) == "⭐")
-            logger.info(f"Message {message.id} has {star_count} star reactions (threshold: {threshold})")
 
             # Check if threshold is met
             if star_count >= threshold:
                 # CRITICAL: Reserve entry IMMEDIATELY to prevent duplicate posts
-                # This creates a "reservation" that other instances will see
-                # We'll update it with actual thread_id after posting
                 try:
                     self.data.reserve_starboard_entry(message.id, message.guild.id, message.channel.id)
-                    logger.info(f"Reserved starboard entry for message {message.id} (prevents duplicates)")
                 except Exception as reserve_error:
-                    # If reservation fails, another instance likely already reserved it
-                    logger.warning(f"Failed to reserve entry (likely already reserved by another instance): {reserve_error}")
+                    # If reservation fails, another instance already reserved it - skip silently
                     self._processing_messages.discard(message.id)
                     return
-                
-                logger.info(
-                    f"✅ Threshold met! Posting message {message.id} to starboard "
-                    f"({star_count} >= {threshold})"
-                )
                 # Add ✅ reaction IMMEDIATELY for instant user feedback
                 try:
                     await message.add_reaction("✅")
-                    logger.debug(f"Added ✅ reaction immediately for instant feedback")
-                except Exception as react_error:
-                    logger.warning(f"Failed to add ✅ reaction (non-critical): {react_error}")
+                except Exception:
+                    pass  # Non-critical, skip logging
                 
                 # Post to starboard in background (non-blocking for instant response)
                 # Use asyncio.create_task with error handling to prevent blocking
@@ -203,11 +192,6 @@ class StarboardService:
         self, message: discord.Message, forum_channel_id: int, star_count: int
     ):
         """Post message to starboard forum channel (runs in background task)."""
-        logger.info(
-            f"Posting message {message.id} to starboard (channel: {forum_channel_id}, "
-            f"stars: {star_count})"
-        )
-
         try:
             # Yield control early to prevent blocking event loop
             await asyncio.sleep(0)
@@ -320,23 +304,13 @@ class StarboardService:
                 logger.error(f"Error accessing thread ID: {id_error}, thread_result type: {type(thread_result)}, attributes: {dir(thread_result)}")
                 raise
 
-            logger.info(
-                f"Successfully created forum thread {thread_id} for message {message.id}"
-            )
-
             # Update reserved entry with final thread_id and tags
-            # (entry was already reserved in handle_reaction_add to prevent duplicates)
             self.data.add_starboard_entry(
                 message.id,
                 thread_id,
                 message.channel.id,
                 message.guild.id,
                 tags,
-            )
-
-            logger.info(
-                f"Posted message {message.id} to starboard thread {thread_id} "
-                f"with tags: {tags} (applied: {[t.name for t in forum_tags]})"
             )
 
             # ✅ reaction already added earlier for instant feedback, so skip here

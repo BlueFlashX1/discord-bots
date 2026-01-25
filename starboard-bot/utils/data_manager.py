@@ -50,14 +50,14 @@ class DataManager:
             return default or {}
 
     def _save_json(self, file_path: Path, data: Any):
-        """Save JSON file (synchronous but fast for small files)."""
+        """Save JSON file (optimized: minimal formatting for speed)."""
         try:
             # Use atomic write: write to temp file, then rename (safer)
             temp_path = file_path.with_suffix(file_path.suffix + '.tmp')
+            # Use compact JSON (no indent) for faster writes
             with open(temp_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+                json.dump(data, f, separators=(',', ':'), ensure_ascii=False)
             temp_path.replace(file_path)  # Atomic rename
-            logger.debug(f"Saved data to {file_path.name}")
         except IOError as e:
             logger.error(f"IO error writing {file_path.name}: {e}", exc_info=True)
             raise
@@ -101,7 +101,7 @@ class DataManager:
     ):
         """
         Reserve a starboard entry immediately to prevent duplicate posts.
-        This is called BEFORE posting to forum to prevent race conditions.
+        Optimized: minimal logging, fast cache check.
         """
         entries = self.get_starboard_entries()
         
@@ -112,19 +112,18 @@ class DataManager:
         # Create reservation entry (thread_id will be updated after posting)
         entries[str(message_id)] = {
             "message_id": message_id,
-            "thread_id": None,  # Will be set after posting
+            "thread_id": None,
             "channel_id": channel_id,
             "guild_id": guild_id,
             "tags": [],
-            "reserved": True,  # Mark as reserved
+            "reserved": True,
         }
 
-        # Update cache and save immediately (atomic operation)
+        # Update cache and save immediately (fast write)
         self._starboard_cache = entries
         self._cache_dirty["starboard"] = True
         self._save_json(self.starboard_file, entries)
         self._cache_dirty["starboard"] = False
-        logger.debug(f"Reserved starboard entry for message {message_id}")
 
     def add_starboard_entry(
         self,
@@ -134,11 +133,7 @@ class DataManager:
         guild_id: int,
         tags: List[str],
     ):
-        """Add or update a starboard entry with final thread_id."""
-        logger.info(
-            f"Adding starboard entry: message {message_id} -> thread {thread_id} "
-            f"(guild: {guild_id}, tags: {tags})"
-        )
+        """Add or update a starboard entry with final thread_id (optimized)."""
         entries = self.get_starboard_entries()
 
         # Update existing entry or create new one
@@ -148,16 +143,14 @@ class DataManager:
             "channel_id": channel_id,
             "guild_id": guild_id,
             "tags": tags,
-            "reserved": False,  # Mark as completed
+            "reserved": False,
         }
 
-        # Update cache immediately
+        # Update cache and save (fast)
         self._starboard_cache = entries
         self._cache_dirty["starboard"] = True
-        
         self._save_json(self.starboard_file, entries)
-        self._cache_dirty["starboard"] = False  # Cache is now in sync
-        logger.debug(f"Starboard entry saved. Total entries: {len(entries)}")
+        self._cache_dirty["starboard"] = False
 
     # Guild configuration
     def get_config(self) -> Dict[str, Any]:
