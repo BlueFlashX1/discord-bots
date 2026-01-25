@@ -17,7 +17,7 @@ load_dotenv()
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,  # Temporarily set to DEBUG for troubleshooting
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
@@ -107,14 +107,14 @@ class StarboardBot(commands.Bot):
         self, reaction: discord.Reaction, user: discord.Member
     ):
         """Handle when a reaction is added."""
-        logger.debug(
-            f"Reaction add event: {reaction.emoji} by {user} "
-            f"(bot: {user.bot}) on message {reaction.message.id}"
+        logger.info(
+            f"⭐ REACTION ADD EVENT: {reaction.emoji} by {user} "
+            f"(bot: {user.bot}) on message {reaction.message.id} in channel {reaction.message.channel}"
         )
 
         # Ignore bot's own reactions
         if user.bot:
-            logger.debug(f"Ignoring bot reaction from {user}")
+            logger.info(f"Ignoring bot reaction from {user}")
             return
 
         try:
