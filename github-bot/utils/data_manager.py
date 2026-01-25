@@ -39,7 +39,7 @@ class DataManager:
         return self._load_json(self.tracked_repos_file, {})
 
     def add_tracked_repo(
-        self, repo: str, channel_id: int, user_id: int, events: List[str]
+        self, repo: str, channel_id: int, user_id: int, events: List[str], release_filter: str = "all"
     ):
         """Add a repository to tracking."""
         repos = self.get_tracked_repos()
@@ -48,6 +48,8 @@ class DataManager:
             "user_id": user_id,
             "events": events,
             "last_check": None,
+            "enabled": True,
+            "release_filter": release_filter,  # "all", "stable", "pre-release"
         }
         self._save_json(self.tracked_repos_file, repos)
 
@@ -63,6 +65,25 @@ class DataManager:
         if repo in repos:
             repos[repo]["last_check"] = timestamp
             self._save_json(self.tracked_repos_file, repos)
+
+    def set_repo_enabled(self, repo: str, enabled: bool):
+        """Enable or disable tracking for a repo."""
+        repos = self.get_tracked_repos()
+        if repo in repos:
+            repos[repo]["enabled"] = enabled
+            self._save_json(self.tracked_repos_file, repos)
+
+    def get_monitor_status(self) -> Dict[str, any]:
+        """Get monitoring status configuration."""
+        status_file = self.data_dir / "monitor_status.json"
+        return self._load_json(status_file, {"paused": False, "last_check": None})
+
+    def set_monitor_paused(self, paused: bool):
+        """Set monitoring pause state."""
+        status_file = self.data_dir / "monitor_status.json"
+        status = self.get_monitor_status()
+        status["paused"] = paused
+        self._save_json(status_file, status)
 
     # User configuration
     def get_user_config(self, user_id: int) -> Dict[str, Any]:

@@ -24,13 +24,20 @@ class TrackCommand(commands.Cog):
         repository="Repository URL or owner/repo (e.g., https://github.com/discord/discord.py or discord/discord.py)",
         events="Events to track (comma-separated: releases, commits, issues)",
         channel="Channel to send notifications to (defaults to current channel)",
+        release_filter="Filter release types: all, stable, or pre-release",
     )
+    @app_commands.choices(release_filter=[
+        app_commands.Choice(name="All Releases", value="all"),
+        app_commands.Choice(name="Stable Only", value="stable"),
+        app_commands.Choice(name="Pre-Releases Only", value="pre-release"),
+    ])
     async def track(
         self,
         interaction: discord.Interaction,
         repository: str,
         events: str = "releases",
         channel: discord.TextChannel = None,
+        release_filter: str = "all",
     ):
         """Track a GitHub repository."""
         await interaction.response.defer()
@@ -67,6 +74,7 @@ class TrackCommand(commands.Cog):
             channel_id,
             interaction.user.id,
             event_list,
+            release_filter,
         )
 
         # Create success embed with repo info
@@ -84,6 +92,18 @@ class TrackCommand(commands.Cog):
             value=f"Events: {', '.join(event_list)}",
             inline=False,
         )
+        
+        if "releases" in event_list:
+            filter_display = {
+                "all": "All releases",
+                "stable": "Stable releases only",
+                "pre-release": "Pre-releases only",
+            }.get(release_filter, "All releases")
+            embed.add_field(
+                name="🔍 Release Filter",
+                value=filter_display,
+                inline=True,
+            )
 
         # Show channel if specified
         target_channel = channel or interaction.channel

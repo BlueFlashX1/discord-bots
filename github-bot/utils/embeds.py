@@ -39,12 +39,16 @@ def create_release_embed(
     author: Optional[str] = None,
     published_at: Optional[str] = None,
     url: Optional[str] = None,
+    is_prerelease: bool = False,
 ) -> discord.Embed:
     """Create an embed for a GitHub release."""
+    title_prefix = "🧪 Pre-Release" if is_prerelease else "🚀 Release"
+    color = discord.Color.orange() if is_prerelease else discord.Color.green()
+    
     embed = discord.Embed(
-        title=f"🚀 New Release: {release_name}",
+        title=f"{title_prefix}: {release_name}",
         description=f"**{repo_name}** - `{tag}`",
-        color=discord.Color.green(),
+        color=color,
         url=url,
     )
 
