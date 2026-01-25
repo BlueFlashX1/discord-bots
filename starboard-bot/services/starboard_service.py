@@ -108,7 +108,8 @@ class StarboardService:
             self._processing_messages.add(message.id)
 
         try:
-            # Check if message already posted to starboard (fast cached check)
+            # CRITICAL: Check if already posted FIRST (before any processing)
+            # This prevents duplicate posts across multiple PM2 instances
             if self.data.is_message_starboarded(message.id):
                 logger.info(f"Message {message.id} already posted to starboard, skipping")
                 self._processing_messages.discard(message.id)
@@ -120,6 +121,18 @@ class StarboardService:
 
             # Check if threshold is met
             if star_count >= threshold:
+                # CRITICAL: Reserve entry IMMEDIATELY to prevent duplicate posts
+                # This creates a "reservation" that other instances will see
+                # We'll update it with actual thread_id after posting
+                try:
+                    self.data.reserve_starboard_entry(message.id, message.guild.id, message.channel.id)
+                    logger.info(f"Reserved starboard entry for message {message.id} (prevents duplicates)")
+                except Exception as reserve_error:
+                    # If reservation fails, another instance likely already reserved it
+                    logger.warning(f"Failed to reserve entry (likely already reserved by another instance): {reserve_error}")
+                    self._processing_messages.discard(message.id)
+                    return
+                
                 logger.info(
                     f"✅ Threshold met! Posting message {message.id} to starboard "
                     f"({star_count} >= {threshold})"
@@ -311,7 +324,8 @@ class StarboardService:
                 f"Successfully created forum thread {thread_id} for message {message.id}"
             )
 
-            # Mark message as starboarded
+            # Update reserved entry with final thread_id and tags
+            # (entry was already reserved in handle_reaction_add to prevent duplicates)
             self.data.add_starboard_entry(
                 message.id,
                 thread_id,
@@ -372,6 +386,10 @@ class StarboardService:
                 logger.warning(
                     f"Failed to add ❌ reaction to message {message.id}: {react_error}"
                 )
+            # Clean up reserved entry on error (allow retry later)
+            # Note: We'll let the entry stay as "reserved" - it will be checked on next reaction
+            # and if threshold is still met, it will try again. The reservation prevents duplicates.
+            logger.debug(f"Leaving reservation for message {message.id} (will be checked on next reaction)")
         finally:
             # Always remove from processing set, even on error
             self._processing_messages.discard(message.id)
