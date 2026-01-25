@@ -142,34 +142,23 @@ class StarboardService:
         self, reaction: discord.Reaction, user: discord.Member
     ):
         """Handle when a star reaction is removed (optional: update star count)."""
-        logger.debug(
-            f"Reaction removed: {reaction.emoji} by {user} on message {reaction.message.id}"
-        )
-
         # Only process star emoji
         if str(reaction.emoji) != "⭐":
-            logger.debug(f"Ignoring non-star reaction removal: {reaction.emoji}")
             return
 
         message = reaction.message
         guild = message.guild
 
         if not guild:
-            logger.debug("Message has no guild, skipping")
             return
 
         # Check if message is already on starboard
         starboard_entry = self.data.get_starboard_entry(message.id)
         if not starboard_entry:
-            logger.debug(f"Message {message.id} not on starboard, skipping update")
             return
 
-        # Count current star reactions
+        # Count current star reactions (for potential future use)
         star_count = sum(1 for r in message.reactions if str(r.emoji) == "⭐")
-        logger.debug(
-            f"Star count updated for message {message.id}: {star_count} stars "
-            f"(was on starboard at thread {starboard_entry.get('thread_id')})"
-        )
 
     async def _post_to_starboard(
         self, message: discord.Message, forum_channel_id: int, star_count: int
@@ -308,49 +297,26 @@ class StarboardService:
             logger.error(
                 f"Bot lacks permission to create forum post in channel {forum_channel_id}. "
                 f"Required permissions: View Channels, Send Messages, Manage Messages, "
-                f"Read Message History. Error: {e}",
-                exc_info=True
+                f"Read Message History. Error: {e}"
             )
-            # React with ❌ to indicate error
             try:
                 await message.add_reaction("❌")
-                logger.debug(f"Added ❌ reaction to message {message.id} (permission error)")
-            except Exception as react_error:
-                logger.warning(
-                    f"Failed to add ❌ reaction to message {message.id}: {react_error}"
-                )
+            except Exception:
+                pass
+            self._processing_messages.discard(message.id)
         except discord.HTTPException as e:
-            logger.error(
-                f"HTTP error creating forum post: {e.status} - {e.text}",
-                exc_info=True
-            )
-            # React with ❌ to indicate error
+            logger.error(f"HTTP error creating forum post: {e.status} - {e.text}")
             try:
                 await message.add_reaction("❌")
-                logger.debug(f"Added ❌ reaction to message {message.id} (HTTP error)")
-            except Exception as react_error:
-                logger.warning(
-                    f"Failed to add ❌ reaction to message {message.id}: {react_error}"
-                )
+            except Exception:
+                pass
+            self._processing_messages.discard(message.id)
         except Exception as e:
-            logger.error(
-                f"Unexpected error posting to starboard: {e}",
-                exc_info=True
-            )
-            # React with ❌ to indicate error
+            logger.error(f"Unexpected error posting to starboard: {e}", exc_info=True)
             try:
                 await message.add_reaction("❌")
-                logger.debug(f"Added ❌ reaction to message {message.id} (unexpected error)")
-            except Exception as react_error:
-                logger.warning(
-                    f"Failed to add ❌ reaction to message {message.id}: {react_error}"
-                )
-            # Clean up reserved entry on error (allow retry later)
-            # Note: We'll let the entry stay as "reserved" - it will be checked on next reaction
-            # and if threshold is still met, it will try again. The reservation prevents duplicates.
-            logger.debug(f"Leaving reservation for message {message.id} (will be checked on next reaction)")
-        finally:
-            # Always remove from processing set, even on error
+            except Exception:
+                pass
             self._processing_messages.discard(message.id)
 
     def _extract_message_content(self, message: discord.Message) -> str:
@@ -468,7 +434,6 @@ class StarboardService:
         for pattern, tag_name in channel_patterns.items():
             if pattern in channel_name:
                 tags.append(tag_name)
-                logger.debug(f"Channel '{channel_name}' matched pattern '{pattern}' -> tag '{tag_name}'")
         
         return tags
 
