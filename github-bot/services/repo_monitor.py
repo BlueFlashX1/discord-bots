@@ -94,7 +94,9 @@ class RepoMonitor:
                 await asyncio.sleep(2)
 
             except Exception as e:
-                logger.error(f"Error monitoring {repo_name}: {e}", exc_info=True)
+                error_msg = str(e)
+                user_msg = error_msg if "asyncio" not in error_msg.lower() else "Error monitoring repository"
+                logger.error(f"Error monitoring {repo_name}: {user_msg}")
 
     @monitor_repos.before_loop
     async def before_monitor_repos(self):

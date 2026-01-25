@@ -39,16 +39,20 @@ async def retry_with_backoff(
         try:
             return await func()
         except Exception as e:
-            # WORKAROUND: Check exception type by name, NEVER use isinstance with exceptions tuple
+            # WORKAROUND: Check exception type safely, avoid accessing type metadata that might trigger asyncio NameError
             # This completely avoids any asyncio NameError issues
-            exc_type = type(e)
-            exc_type_name = exc_type.__name__
-            exc_module = getattr(exc_type, "__module__", "")
-
-            # Check if it's a retryable exception by type name and module
-            # Never reference asyncio or use isinstance with the exceptions tuple
+            error_msg = str(e)
+            
+            # Safely get exception type name - wrap in try/except to avoid NameError
+            try:
+                error_type_str = type(e).__name__
+            except (NameError, AttributeError):
+                error_type_str = "Exception"
+            
+            # Check if it's a retryable exception by type name string only
+            # Never access __module__ or use isinstance with the exceptions tuple
             should_retry = (
-                exc_type_name
+                error_type_str
                 in (
                     "TimeoutError",
                     "ClientError",
@@ -56,10 +60,9 @@ async def retry_with_backoff(
                     "ClientConnectionError",
                     "ClientConnectorError",
                 )
-                or "aiohttp" in exc_module
-                or exc_type_name.endswith(
-                    "TimeoutError"
-                )  # Catches asyncio.TimeoutError by name
+                or error_type_str.endswith("TimeoutError")  # Catches asyncio.TimeoutError by name
+                or "aiohttp" in error_msg.lower()  # Check error message instead of module
+                or "timeout" in error_msg.lower()  # Also check error message for timeout
             )
 
             if should_retry:

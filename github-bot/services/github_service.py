@@ -99,10 +99,12 @@ class GitHubService:
                 operation_name=f"GitHub API {method} {endpoint}",
             )
         except NameError as e:
-            logger.error(f"NameError in _request: {type(e).__name__}: {e}")
+            error_msg = str(e)
+            logger.error(f"NameError in _request: {error_msg}")
             raise
         except Exception as e:
-            logger.error(f"Unexpected error in _request: {type(e).__name__}: {e}")
+            error_msg = str(e)
+            logger.error(f"Unexpected error in _request: {error_msg}")
             raise
 
     async def get_repo(self, owner: str, repo: str) -> Optional[Dict]:

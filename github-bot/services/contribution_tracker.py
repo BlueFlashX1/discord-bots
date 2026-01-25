@@ -126,7 +126,9 @@ class ContributionTracker:
                 except (ValueError, TypeError) as e:
                     logger.warning(f"Invalid user_id format '{user_id_str}': {e}")
                 except Exception as e:
-                    logger.error(f"Error updating contributions for {github_username}: {type(e).__name__}: {e}")
+                    error_msg = str(e)
+                    user_msg = error_msg if "asyncio" not in error_msg.lower() else "Error updating contributions"
+                    logger.error(f"Error updating contributions for {github_username}: {user_msg}")
 
     @update_contributions.before_loop
     async def before_update_contributions(self):
