@@ -172,13 +172,13 @@ class StarboardService:
 
             logger.debug(f"Forum channel found: {forum_channel.name} ({forum_channel.id})")
 
-            # Get message content
-            content = message.content or "*No content*"
-            logger.debug(f"Message content length: {len(content)} chars")
+            # Get message content with improved fallbacks
+            content = self._extract_message_content(message)
+            logger.debug(f"Message content length: {len(content)} chars, source: {getattr(content, '_source', 'message.content')}")
 
-            # Auto-classify tags
+            # Auto-classify tags with improved context
             logger.debug("Classifying message for tags...")
-            tags = self.tag_classifier.classify(content)
+            tags = self._classify_message(message, content)
             logger.info(f"Classified tags: {tags}")
 
             # Get forum tags (Discord tag objects)
@@ -311,6 +311,143 @@ class StarboardService:
                     f"Failed to add ❌ reaction to message {message.id}: {react_error}"
                 )
 
+    def _extract_message_content(self, message: discord.Message) -> str:
+        """
+        Extract content from message with multiple fallbacks.
+        
+        Priority:
+        1. message.content (text content)
+        2. Embed title/description
+        3. Attachment filenames
+        4. Channel name + author name as fallback
+        
+        Args:
+            message: Discord message object
+            
+        Returns:
+            Extracted content string
+        """
+        # Try message content first
+        if message.content and message.content.strip():
+            return message.content.strip()
+        
+        # Try embeds
+        if message.embeds:
+            for embed in message.embeds:
+                # Try embed title
+                if embed.title and embed.title.strip():
+                    content = embed.title.strip()
+                    if embed.description and embed.description.strip():
+                        content += f" - {embed.description.strip()}"
+                    return content
+                # Try embed description
+                if embed.description and embed.description.strip():
+                    return embed.description.strip()
+                # Try embed fields
+                if embed.fields:
+                    field_texts = [f"{field.name}: {field.value}" for field in embed.fields if field.value]
+                    if field_texts:
+                        return " | ".join(field_texts)
+        
+        # Try attachments
+        if message.attachments:
+            filenames = [att.filename for att in message.attachments if att.filename]
+            if filenames:
+                return f"Attachment: {', '.join(filenames)}"
+        
+        # Fallback: Use channel name and author
+        channel_name = getattr(message.channel, 'name', 'Unknown Channel')
+        author_name = getattr(message.author, 'display_name', getattr(message.author, 'name', 'Unknown'))
+        return f"Message from {author_name} in #{channel_name}"
+
+    def _classify_message(self, message: discord.Message, content: str) -> List[str]:
+        """
+        Classify message with improved context including channel names.
+        
+        Args:
+            message: Discord message object
+            content: Message content string
+            
+        Returns:
+            List of tag names
+        """
+        tags = []
+        
+        # Classify based on content
+        content_tags = self.tag_classifier.classify(content)
+        tags.extend(content_tags)
+        
+        # Classify based on channel name
+        channel_name = getattr(message.channel, 'name', '').lower()
+        channel_tags = self._classify_channel_name(channel_name)
+        tags.extend(channel_tags)
+        
+        # Classify based on embeds
+        if message.embeds:
+            for embed in message.embeds:
+                embed_text = ""
+                if embed.title:
+                    embed_text += embed.title + " "
+                if embed.description:
+                    embed_text += embed.description + " "
+                if embed_text:
+                    embed_tags = self.tag_classifier.classify(embed_text)
+                    tags.extend(embed_tags)
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_tags = []
+        for tag in tags:
+            if tag not in seen:
+                seen.add(tag)
+                unique_tags.append(tag)
+        
+        return unique_tags
+
+    def _classify_channel_name(self, channel_name: str) -> List[str]:
+        """
+        Classify channel name to suggest tags.
+        
+        Args:
+            channel_name: Channel name (lowercase)
+            
+        Returns:
+            List of suggested tag names
+        """
+        tags = []
+        
+        # Channel name patterns -> tags
+        channel_patterns = {
+            'data-science': 'Data Science',
+            'data-science-news': 'Data Science',
+            'ai': 'AI',
+            'artificial-intelligence': 'AI',
+            'machine-learning': 'AI',
+            'ml': 'AI',
+            'programming': 'Programming',
+            'code': 'Programming',
+            'dev': 'Programming',
+            'development': 'Programming',
+            'question': 'Question',
+            'help': 'Question',
+            'support': 'Question',
+            'resource': 'Resource',
+            'links': 'Resource',
+            'tutorial': 'Resource',
+            'announcement': 'Announcement',
+            'news': 'Announcement',
+            'discussion': 'Discussion',
+            'chat': 'Discussion',
+        }
+        
+        # Check for patterns in channel name
+        for pattern, tag_name in channel_patterns.items():
+            if pattern in channel_name:
+                tags.append(tag_name)
+                logger.debug(f"Channel '{channel_name}' matched pattern '{pattern}' -> tag '{tag_name}'")
+        
+        return tags
+
     def _create_standardized_title(self, content: str, tags: List[str]) -> str:
         """
         Create standardized title with tags: [Tag1] [Tag2] Original Title.
@@ -327,6 +464,15 @@ class StarboardService:
         # Extract first line or first 100 chars as base title
         lines = content.split("\n")
         base_title = lines[0].strip() if lines else content.strip()
+        
+        # If base title is empty or just whitespace, use a fallback
+        if not base_title or base_title == "*No content*":
+            # Try to create a meaningful title from tags or use generic fallback
+            if tags:
+                base_title = f"Starred {tags[0]} Content"
+            else:
+                base_title = "Starred Message"
+            logger.debug(f"Content was empty, using fallback title: {base_title}")
 
         # Limit base title length
         max_title_length = 100
