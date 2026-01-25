@@ -1,5 +1,6 @@
 """Starboard service for monitoring reactions and posting to forum."""
 
+import asyncio
 import logging
 from typing import List, Optional
 
@@ -98,8 +99,12 @@ class StarboardService:
             except Exception as react_error:
                 logger.warning(f"Failed to add ✅ reaction (non-critical): {react_error}")
             
-            # Post to starboard (this can take time, but user already got feedback)
-            await self._post_to_starboard(message, forum_channel_id, star_count)
+            # Post to starboard in background (non-blocking for instant response)
+            # Fire and forget - user already got instant feedback
+            asyncio.create_task(
+                self._post_to_starboard(message, forum_channel_id, star_count)
+            )
+            logger.debug(f"Posted starboard task to background (non-blocking)")
         else:
             logger.info(
                 f"⏳ Threshold not met yet: {star_count} < {threshold} "
@@ -189,14 +194,16 @@ class StarboardService:
             tags = self._classify_message(message, content)
             logger.info(f"Classified tags: {tags}")
 
-            # Get forum tags (Discord tag objects)
+            # Get forum tags (Discord tag objects) - optimized lookup
             forum_tags = []
-            available_tag_names = [tag.name for tag in forum_channel.available_tags]
+            # Create lookup dict for O(1) tag matching instead of O(n) loop
+            tag_lookup = {tag.name: tag for tag in forum_channel.available_tags}
+            available_tag_names = list(tag_lookup.keys())
             logger.debug(f"Forum has {len(available_tag_names)} available tags: {available_tag_names}")
 
             for tag_name in tags:
-                # Find matching tag in forum channel
-                forum_tag = discord.utils.get(forum_channel.available_tags, name=tag_name)
+                # Fast O(1) lookup instead of O(n) search
+                forum_tag = tag_lookup.get(tag_name)
                 if forum_tag:
                     forum_tags.append(forum_tag)
                     logger.debug(f"Found forum tag: {tag_name} (id: {forum_tag.id})")
