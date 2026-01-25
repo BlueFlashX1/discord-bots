@@ -215,28 +215,32 @@ class StarboardService:
 
             # Create forum post
             logger.info(f"Creating forum thread: '{title}' with {len(forum_tags)} tags")
-            thread = await forum_channel.create_thread(
+            thread_result = await forum_channel.create_thread(
                 name=title,
                 content=content,
                 embed=embed,
                 applied_tags=forum_tags,
             )
 
+            # ThreadWithMessage has a 'thread' attribute containing the actual Thread object
+            thread = thread_result.thread if hasattr(thread_result, 'thread') else thread_result
+            thread_id = thread.id
+
             logger.info(
-                f"Successfully created forum thread {thread.id} for message {message.id}"
+                f"Successfully created forum thread {thread_id} for message {message.id}"
             )
 
             # Mark message as starboarded
             self.data.add_starboard_entry(
                 message.id,
-                thread.id,
+                thread_id,
                 message.channel.id,
                 message.guild.id,
                 tags,
             )
 
             logger.info(
-                f"Posted message {message.id} to starboard thread {thread.id} "
+                f"Posted message {message.id} to starboard thread {thread_id} "
                 f"with tags: {tags} (applied: {[t.name for t in forum_tags]})"
             )
 
