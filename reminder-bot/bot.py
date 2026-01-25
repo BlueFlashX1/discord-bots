@@ -39,6 +39,9 @@ if not DISCORD_TOKEN:
     logger.error("DISCORD_TOKEN not found in environment variables")
     sys.exit(1)
 
+# Type narrowing: after check, DISCORD_TOKEN is guaranteed to be str
+assert DISCORD_TOKEN is not None
+
 # Convert CLIENT_ID to int if provided, otherwise None
 CLIENT_ID: int | None = None
 if CLIENT_ID_STR:

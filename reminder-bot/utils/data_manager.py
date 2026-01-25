@@ -113,7 +113,9 @@ class DataManager:
         reminders = self.get_reminders()
         due = []
         for reminder in reminders.values():
-            if reminder.get("remind_at") <= current_time:
+            remind_at = reminder.get("remind_at")
+            # Skip reminders without remind_at or if remind_at is None
+            if remind_at is not None and remind_at <= current_time:
                 due.append(reminder)
         return due
 
