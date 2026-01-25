@@ -14,7 +14,6 @@ class DataManager:
     def __init__(self, data_dir: str = "data"):
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(exist_ok=True)
-        logger.debug(f"DataManager initialized with data directory: {self.data_dir}")
 
         # File paths
         self.starboard_file = self.data_dir / "starboard.json"
@@ -25,22 +24,14 @@ class DataManager:
         self._config_cache: Optional[Dict[str, Any]] = None
         self._cache_dirty = {"starboard": False, "config": False}
 
-        # Log file status
-        logger.debug(
-            f"Data files - Starboard: {self.starboard_file.exists()}, "
-            f"Config: {self.config_file.exists()}"
-        )
-
     def _load_json(self, file_path: Path, default: Any = None) -> Any:
         """Load JSON file (synchronous but fast for small files)."""
         try:
             if file_path.exists():
                 with open(file_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    logger.debug(f"Loaded {len(data) if isinstance(data, dict) else 'data'} from {file_path.name}")
                     return data
             else:
-                logger.debug(f"File {file_path.name} does not exist, using default")
                 return default or {}
         except json.JSONDecodeError as e:
             logger.error(f"JSON decode error in {file_path.name}: {e}", exc_info=True)
@@ -83,9 +74,7 @@ class DataManager:
     def get_starboard_entry(self, message_id: int) -> Optional[Dict]:
         """Get starboard entry for a message."""
         entries = self.get_starboard_entries()
-        entry = entries.get(str(message_id))
-        if entry:
-        return entry
+        return entries.get(str(message_id))
 
     def reserve_starboard_entry(
         self,
@@ -182,15 +171,12 @@ class DataManager:
 
         if guild_key not in config:
             config[guild_key] = {}
-            logger.debug(f"Created new config entry for guild {guild_id}")
 
         if forum_channel_id is not None:
             config[guild_key]["forum_channel_id"] = forum_channel_id
-            logger.debug(f"Set forum channel to {forum_channel_id}")
 
         if star_threshold is not None:
             config[guild_key]["star_threshold"] = star_threshold
-            logger.debug(f"Set star threshold to {star_threshold}")
 
         # Update cache immediately
         self._config_cache = config

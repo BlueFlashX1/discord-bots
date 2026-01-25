@@ -159,50 +159,34 @@ class StarboardBot(commands.Bot):
 
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
         """Handle raw reaction add events (works for all messages, even if not in cache)."""
-        # Log EVERY reaction event with maximum visibility
-        logger.info(
-            f"⭐⭐⭐ RAW REACTION ADD EVENT FIRED ⭐⭐⭐: emoji={payload.emoji}, user_id={payload.user_id}, "
-            f"message_id={payload.message_id}, channel_id={payload.channel_id}, guild_id={payload.guild_id}"
-        )
-        
         # Ignore bot's own reactions
         if payload.user_id == self.user.id:
-            logger.info(f"Ignoring bot's own reaction")
             return
         
         try:
             # Get the channel and message
             channel = self.get_channel(payload.channel_id)
             if not channel:
-                logger.warning(f"Channel {payload.channel_id} not found")
                 return
             
             # Fetch the message
             try:
                 message = await channel.fetch_message(payload.message_id)
-            except discord.NotFound:
-                logger.warning(f"Message {payload.message_id} not found in channel {payload.channel_id}")
-                return
-            except discord.Forbidden:
-                logger.warning(f"No permission to fetch message {payload.message_id} in channel {payload.channel_id}")
+            except (discord.NotFound, discord.Forbidden):
                 return
             
             # Get the user (optimize: use member from payload if available)
             user = payload.member
             if not user:
-                # Fetch user if member not available (only if needed)
                 try:
                     user = await self.fetch_user(payload.user_id)
                 except discord.NotFound:
-                    logger.warning(f"User {payload.user_id} not found")
                     return
             
             if user.bot:
-                logger.info(f"Ignoring bot reaction from {user}")
                 return
             
             # Find the actual reaction object from the already-fetched message
-            # No need to fetch again - message already has reactions
             reaction = None
             for r in message.reactions:
                 if str(r.emoji) == str(payload.emoji):
@@ -210,10 +194,8 @@ class StarboardBot(commands.Bot):
                     break
             
             if not reaction:
-                logger.warning(f"Reaction {payload.emoji} not found on message {payload.message_id}")
                 return
             
-            logger.info(f"Processing reaction {payload.emoji} on message {payload.message_id} via on_raw_reaction_add")
             # Process immediately without blocking
             await self.starboard_service.handle_reaction_add(reaction, user)
         except Exception as e:
