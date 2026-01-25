@@ -22,6 +22,21 @@ class RepoMonitor:
         self.data = data_manager
         self.monitor_task = None
 
+    def is_paused(self) -> bool:
+        """Check if monitoring is paused."""
+        status = self.data.get_monitor_status()
+        return status.get("paused", False)
+
+    def pause(self):
+        """Pause monitoring."""
+        self.data.set_monitor_paused(True)
+        logger.info("Repository monitoring paused")
+
+    def resume(self):
+        """Resume monitoring."""
+        self.data.set_monitor_paused(False)
+        logger.info("Repository monitoring resumed")
+
     def start(self):
         """Start monitoring repositories."""
         if not self.monitor_task or self.monitor_task.done():
@@ -37,13 +52,29 @@ class RepoMonitor:
     @tasks.loop(minutes=15)
     async def monitor_repos(self):
         """Monitor all tracked repositories."""
+        # Check if paused
+        if self.is_paused():
+            logger.debug("Monitoring is paused")
+            return
+
         repos = self.data.get_tracked_repos()
         if not repos:
             logger.debug("No repositories to monitor")
             return
 
-        logger.debug(f"Monitoring {len(repos)} repositories")
-        for repo_name, config in repos.items():
+        # Filter to enabled repos only
+        enabled_repos = {
+            repo: config
+            for repo, config in repos.items()
+            if config.get("enabled", True)
+        }
+
+        if not enabled_repos:
+            logger.debug("No enabled repositories to monitor")
+            return
+
+        logger.debug(f"Monitoring {len(enabled_repos)} repositories")
+        for repo_name, config in enabled_repos.items():
             try:
                 if not repo_name or not isinstance(repo_name, str):
                     continue
@@ -55,6 +86,14 @@ class RepoMonitor:
                 # Check for new releases
                 latest_release = await self.github.get_latest_release(owner, repo)
                 if latest_release:
+                    # Apply release filter
+                    release_filter = config.get("release_filter", "all")
+                    is_prerelease = latest_release.get("prerelease", False)
+
+                    if release_filter == "stable" and is_prerelease:
+                        logger.debug(f"Skipping pre-release for {repo_name} (filter: stable)")
+                        continue
+
                     cached = self.data.get_repo_updates(repo_name)
                     cached_tag = cached.get("latest_release_tag")
 
@@ -73,6 +112,7 @@ class RepoMonitor:
                                     author=latest_release.get("author", {}).get("login"),
                                     published_at=latest_release.get("published_at"),
                                     url=latest_release.get("html_url"),
+                                    is_prerelease=is_prerelease,
                                 )
                                 await channel.send(
                                     f"🚀 **New Release Detected!**",
@@ -92,6 +132,12 @@ class RepoMonitor:
 
                 # Rate limiting - sleep between checks
                 await asyncio.sleep(2)
+        
+        # Update global last check time
+        status = self.data.get_monitor_status()
+        status["last_check"] = datetime.utcnow().isoformat()
+        status_file = self.data.data_dir / "monitor_status.json"
+        self.data._save_json(status_file, status)
 
             except Exception as e:
                 error_msg = str(e)
