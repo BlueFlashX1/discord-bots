@@ -66,15 +66,12 @@ class StarboardService:
         message = reaction.message
 
         # Fetch message if it's a partial message
-        try:
-            if message.partial:
-                try:
-                    message = await message.fetch()
-                except Exception as e:
-                    logger.error(f"Failed to fetch partial message {message.id}: {e}")
-                    return
-        except AttributeError:
-            pass
+        if hasattr(message, 'partial') and message.partial:
+            try:
+                message = await message.fetch()
+            except Exception as e:
+                logger.error(f"Failed to fetch partial message {message.id}: {e}")
+                return
 
         guild = message.guild
 
@@ -176,8 +173,9 @@ class StarboardService:
             forum_channel = self._forum_channel_cache.get(forum_channel_id)
             if forum_channel is None:
                 # Fallback: fetch if not cached (shouldn't happen, but handle gracefully)
-                forum_channel = self.bot.get_channel(forum_channel_id)
-                if forum_channel:
+                fetched_channel = self.bot.get_channel(forum_channel_id)
+                if fetched_channel and isinstance(fetched_channel, discord.ForumChannel):
+                    forum_channel = fetched_channel
                     self._forum_channel_cache[forum_channel_id] = forum_channel
 
             if not forum_channel:
@@ -257,24 +255,33 @@ class StarboardService:
             )
 
             # ThreadWithMessage structure: try multiple ways to get thread ID
+            thread_id: Optional[int] = None
             try:
                 # Try accessing thread attribute first (ThreadWithMessage.thread.id)
                 if hasattr(thread_result, 'thread'):
-                    thread_id = thread_result.thread.id
+                    thread_obj = getattr(thread_result, 'thread')
+                    if hasattr(thread_obj, 'id'):
+                        thread_id = getattr(thread_obj, 'id')
                 # Try direct id access (in case it's already a Thread)
                 elif hasattr(thread_result, 'id'):
-                    thread_id = thread_result.id
+                    thread_id = getattr(thread_result, 'id')
                 else:
                     # Fallback: try to get it from the thread object
                     thread = getattr(thread_result, 'thread', thread_result)
-                    thread_id = thread.id if hasattr(thread, 'id') else None
-                    if thread_id is None:
-                        raise AttributeError("Could not find thread ID in ThreadWithMessage object")
+                    if hasattr(thread, 'id'):
+                        thread_id = getattr(thread, 'id')
+
+                if thread_id is None:
+                    raise AttributeError("Could not find thread ID in ThreadWithMessage object")
             except Exception as id_error:
                 logger.error(f"Error accessing thread ID: {id_error}, thread_result type: {type(thread_result)}, attributes: {dir(thread_result)}")
                 raise
 
             # Save entry immediately after posting (async file write to avoid blocking)
+            if message.guild is None:
+                logger.error("Message has no guild, cannot save starboard entry")
+                return
+
             await asyncio.to_thread(
                 self.data.add_starboard_entry,
                 message.id,
