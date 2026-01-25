@@ -205,8 +205,8 @@ class StarboardService:
                     f"Posting without tags."
                 )
 
-            # Create standardized title
-            title = self._create_standardized_title(content, tags)
+            # Create standardized title (pass message for better title extraction)
+            title = self._create_standardized_title(message, content, tags)
             logger.debug(f"Generated title: {title} (length: {len(title)})")
 
             # Create embed
@@ -448,12 +448,13 @@ class StarboardService:
         
         return tags
 
-    def _create_standardized_title(self, content: str, tags: List[str]) -> str:
+    def _create_standardized_title(self, message: discord.Message, content: str, tags: List[str]) -> str:
         """
         Create standardized title with tags: [Tag1] [Tag2] Original Title.
         
         Args:
-            content: Original message content
+            message: Discord message object (for direct embed/attachment access)
+            content: Extracted message content
             tags: List of tags to include
             
         Returns:
@@ -461,18 +462,46 @@ class StarboardService:
         """
         logger.debug(f"Creating title from content (len: {len(content)}) with tags: {tags}")
 
-        # Extract first line or first 100 chars as base title
-        lines = content.split("\n")
-        base_title = lines[0].strip() if lines else content.strip()
+        # Try to get best title from message directly (prioritize embeds for titles)
+        base_title = None
         
-        # If base title is empty or just whitespace, use a fallback
-        if not base_title or base_title == "*No content*":
-            # Try to create a meaningful title from tags or use generic fallback
-            if tags:
-                base_title = f"Starred {tags[0]} Content"
-            else:
-                base_title = "Starred Message"
-            logger.debug(f"Content was empty, using fallback title: {base_title}")
+        # First, try embed title (best for RSS feeds and rich embeds)
+        if message.embeds:
+            for embed in message.embeds:
+                if embed.title and embed.title.strip():
+                    base_title = embed.title.strip()
+                    logger.debug(f"Using embed title for base_title: {base_title}")
+                    break
+        
+        # If no embed title, use content (first line)
+        if not base_title:
+            lines = content.split("\n")
+            base_title = lines[0].strip() if lines else content.strip()
+        
+        # Filter out "No content" variations
+        no_content_variants = ["*no content*", "no content", "*no content", "no content*"]
+        if base_title.lower() in no_content_variants:
+            base_title = None
+            logger.debug(f"Filtered out 'No content' variant: {base_title}")
+        
+        # If base title is empty, meaningless, or filtered out, use intelligent fallback
+        if not base_title or len(base_title.strip()) < 3:
+            # Try embed description as fallback
+            if message.embeds:
+                for embed in message.embeds:
+                    if embed.description and embed.description.strip() and len(embed.description.strip()) > 10:
+                        base_title = embed.description.strip()[:80]  # Limit length
+                        logger.debug(f"Using embed description as fallback: {base_title[:50]}...")
+                        break
+            
+            # If still no good title, use tags + channel context
+            if not base_title or len(base_title.strip()) < 3:
+                channel_name = getattr(message.channel, 'name', '').replace('-', ' ').title()
+                if tags:
+                    base_title = f"{tags[0]} Content from {channel_name}" if channel_name else f"{tags[0]} Content"
+                else:
+                    base_title = f"Starred Content from {channel_name}" if channel_name else "Starred Message"
+                logger.debug(f"Using intelligent fallback title: {base_title}")
 
         # Limit base title length
         max_title_length = 100
