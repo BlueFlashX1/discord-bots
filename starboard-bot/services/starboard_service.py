@@ -23,6 +23,7 @@ class StarboardService:
         # Cache forum channel and config for instant access
         self._forum_channel_cache: Dict[int, Optional[discord.ForumChannel]] = {}
         self._guild_config_cache: Dict[int, Optional[Dict]] = {}
+        self._tag_lookup_cache: Dict[int, Dict[str, discord.ForumTag]] = {}  # Cache tag lookups per forum
         
         # Processing locks to prevent duplicate work
         self._processing_messages: Set[int] = set()
@@ -33,7 +34,6 @@ class StarboardService:
         try:
             _ = self.data.get_config()  # Warm config cache
             _ = self.data.get_starboard_entries()  # Warm starboard cache
-            logger.debug("Cache pre-warmed on startup")
         except Exception as e:
             logger.warning(f"Failed to pre-warm cache: {e}")
         
@@ -232,56 +232,59 @@ class StarboardService:
                     )
                 return
 
-            logger.debug(f"Forum channel found: {forum_channel.name} ({forum_channel.id})")
+            # Get cached tag lookup or create it
+            tag_lookup = self._tag_lookup_cache.get(forum_channel_id)
+            if tag_lookup is None:
+                tag_lookup = {tag.name: tag for tag in forum_channel.available_tags}
+                self._tag_lookup_cache[forum_channel_id] = tag_lookup
 
-            # Get message content with improved fallbacks
-            content = self._extract_message_content(message)
-            logger.debug(f"Message content length: {len(content)} chars, source: {getattr(content, '_source', 'message.content')}")
+            # Get message content (simplified - just get text or embed title)
+            content = message.content.strip() if message.content else ""
+            if not content and message.embeds:
+                embed = message.embeds[0]
+                content = embed.title or embed.description or ""
 
-            # Auto-classify tags with improved context
-            logger.debug("Classifying message for tags...")
-            tags = self._classify_message(message, content)
-            logger.info(f"Classified tags: {tags}")
+            # Quick tag classification (simplified - content + channel only)
+            tags = []
+            if content:
+                content_tags = self.tag_classifier.classify(content)
+                tags.extend(content_tags)
+            
+            # Add channel-based tags
+            channel_name = getattr(message.channel, 'name', '').lower()
+            channel_tags = self._classify_channel_name(channel_name)
+            tags.extend(channel_tags)
+            
+            # Remove duplicates
+            tags = list(dict.fromkeys(tags))  # Preserves order, removes dupes
 
-            # Get forum tags (Discord tag objects) - optimized lookup
-            forum_tags = []
-            # Create lookup dict for O(1) tag matching instead of O(n) loop
-            tag_lookup = {tag.name: tag for tag in forum_channel.available_tags}
-            available_tag_names = list(tag_lookup.keys())
-            logger.debug(f"Forum has {len(available_tag_names)} available tags: {available_tag_names}")
+            # Get forum tags (fast O(1) lookup from cache)
+            forum_tags = [tag_lookup[tag] for tag in tags if tag in tag_lookup]
 
-            for tag_name in tags:
-                # Fast O(1) lookup instead of O(n) search
-                forum_tag = tag_lookup.get(tag_name)
-                if forum_tag:
-                    forum_tags.append(forum_tag)
-                    logger.debug(f"Found forum tag: {tag_name} (id: {forum_tag.id})")
-                else:
-                    logger.warning(
-                        f"Tag '{tag_name}' not found in forum channel tags. "
-                        f"Available tags: {available_tag_names}. "
-                        f"Please create '{tag_name}' tag in Discord forum channel."
-                    )
-
-            if not forum_tags:
-                logger.warning(
-                    f"No matching forum tags found for classified tags: {tags}. "
-                    f"Posting without tags."
-                )
-
-            # Create standardized title (pass message for better title extraction)
-            title = self._create_standardized_title(message, content, tags)
-            logger.debug(f"Generated title: {title} (length: {len(title)})")
+            # Create title (simplified - use embed title if available, else content)
+            base_title = None
+            if message.embeds and message.embeds[0].title:
+                base_title = message.embeds[0].title.strip()
+            elif content:
+                base_title = content.split("\n")[0].strip()[:80]
+            
+            if not base_title or len(base_title) < 3:
+                channel_name = getattr(message.channel, 'name', 'Channel')
+                base_title = f"Starred from #{channel_name}"
+            
+            # Build title with tags
+            tag_prefix = " ".join(f"[{tag}]" for tag in tags[:3])  # Limit to 3 tags
+            title = f"{tag_prefix} {base_title}" if tag_prefix else base_title
+            if len(title) > 100:
+                title = title[:97] + "..."
 
             # Create embed
             embed = create_starboard_embed(message, star_count)
-            logger.debug("Created starboard embed")
 
-            # Create forum post
-            logger.info(f"Creating forum thread: '{title}' with {len(forum_tags)} tags")
+            # Create forum post (simplified - minimal logging)
             thread_result = await forum_channel.create_thread(
                 name=title,
-                content=content,
+                content=content or " ",
                 embed=embed,
                 applied_tags=forum_tags,
             )
@@ -424,7 +427,7 @@ class StarboardService:
 
     def _classify_message(self, message: discord.Message, content: str) -> List[str]:
         """
-        Classify message with improved context including channel names.
+        Classify message (simplified - content + channel only for speed).
         
         Args:
             message: Discord message object
@@ -435,36 +438,18 @@ class StarboardService:
         """
         tags = []
         
-        # Classify based on content
-        content_tags = self.tag_classifier.classify(content)
-        tags.extend(content_tags)
+        # Classify based on content (if exists)
+        if content:
+            content_tags = self.tag_classifier.classify(content)
+            tags.extend(content_tags)
         
-        # Classify based on channel name
+        # Classify based on channel name (fast lookup)
         channel_name = getattr(message.channel, 'name', '').lower()
         channel_tags = self._classify_channel_name(channel_name)
         tags.extend(channel_tags)
         
-        # Classify based on embeds
-        if message.embeds:
-            for embed in message.embeds:
-                embed_text = ""
-                if embed.title:
-                    embed_text += embed.title + " "
-                if embed.description:
-                    embed_text += embed.description + " "
-                if embed_text:
-                    embed_tags = self.tag_classifier.classify(embed_text)
-                    tags.extend(embed_tags)
-        
-        # Remove duplicates while preserving order
-        seen = set()
-        unique_tags = []
-        for tag in tags:
-            if tag not in seen:
-                seen.add(tag)
-                unique_tags.append(tag)
-        
-        return unique_tags
+        # Remove duplicates (preserve order)
+        return list(dict.fromkeys(tags))
 
     def _classify_channel_name(self, channel_name: str) -> List[str]:
         """
@@ -512,97 +497,39 @@ class StarboardService:
 
     def _create_standardized_title(self, message: discord.Message, content: str, tags: List[str]) -> str:
         """
-        Create standardized title with tags: [Tag1] [Tag2] Original Title.
+        Create standardized title (simplified for speed).
         
         Args:
-            message: Discord message object (for direct embed/attachment access)
-            content: Extracted message content
+            message: Discord message object
+            content: Message content string
             tags: List of tags to include
             
         Returns:
             Standardized title string
         """
-        logger.debug(f"Creating title from content (len: {len(content)}) with tags: {tags}")
-
-        # Try to get best title from message directly (prioritize embeds for titles)
+        # Get base title (embed title > content > fallback)
         base_title = None
+        if message.embeds and message.embeds[0].title:
+            base_title = message.embeds[0].title.strip()
+        elif content:
+            base_title = content.split("\n")[0].strip()
         
-        # First, try embed title (best for RSS feeds and rich embeds)
-        if message.embeds:
-            for embed in message.embeds:
-                if embed.title and embed.title.strip():
-                    base_title = embed.title.strip()
-                    logger.debug(f"Using embed title for base_title: {base_title}")
-                    break
+        # Fallback if empty
+        if not base_title or len(base_title) < 3:
+            channel_name = getattr(message.channel, 'name', '').replace('-', ' ').title()
+            base_title = f"Starred from {channel_name}" if channel_name else "Starred Message"
         
-        # If no embed title, use content (first line)
-        if not base_title:
-            lines = content.split("\n")
-            base_title = lines[0].strip() if lines else content.strip()
+        # Build title with tags (limit to 3 tags for shorter titles)
+        tag_prefix = " ".join(f"[{tag}]" for tag in tags[:3])
+        title = f"{tag_prefix} {base_title}" if tag_prefix else base_title
         
-        # Filter out "No content" variations
-        no_content_variants = ["*no content*", "no content", "*no content", "no content*"]
-        if base_title.lower() in no_content_variants:
-            base_title = None
-            logger.debug(f"Filtered out 'No content' variant: {base_title}")
-        
-        # If base title is empty, meaningless, or filtered out, use intelligent fallback
-        if not base_title or len(base_title.strip()) < 3:
-            # Try embed description as fallback
-            if message.embeds:
-                for embed in message.embeds:
-                    if embed.description and embed.description.strip() and len(embed.description.strip()) > 10:
-                        base_title = embed.description.strip()[:80]  # Limit length
-                        logger.debug(f"Using embed description as fallback: {base_title[:50]}...")
-                        break
-            
-            # If still no good title, use tags + channel context
-            if not base_title or len(base_title.strip()) < 3:
-                channel_name = getattr(message.channel, 'name', '').replace('-', ' ').title()
-                if tags:
-                    base_title = f"{tags[0]} Content from {channel_name}" if channel_name else f"{tags[0]} Content"
-                else:
-                    base_title = f"Starred Content from {channel_name}" if channel_name else "Starred Message"
-                logger.debug(f"Using intelligent fallback title: {base_title}")
-
-        # Limit base title length
-        max_title_length = 100
-        if len(base_title) > max_title_length:
-            base_title = base_title[:max_title_length].rsplit(" ", 1)[0] + "..."
-            logger.debug(f"Truncated base title to {len(base_title)} chars")
-
-        # Build tag prefix
-        tag_prefix = " ".join(f"[{tag}]" for tag in tags)
-
-        # Combine: [Tag1] [Tag2] Original Title
-        if tag_prefix:
-            title = f"{tag_prefix} {base_title}"
-        else:
-            title = base_title
-            logger.debug("No tags, using base title only")
-
-        # Discord forum thread title limit is 100 characters - ENFORCE IT
+        # Enforce 100 char limit
         if len(title) > 100:
-            # Prioritize tags, truncate base title if needed
-            tag_length = len(tag_prefix) + 1 if tag_prefix else 0  # +1 for space if tags exist
-            available_length = 100 - tag_length
-            
-            if available_length > 0:
-                # Truncate base title to fit
-                truncated_base = base_title[:available_length - 3]  # -3 for "..."
-                if len(base_title) > available_length - 3:
-                    truncated_base = truncated_base.rsplit(" ", 1)[0]  # Don't cut words
-                title = f"{tag_prefix} {truncated_base}..." if tag_prefix else f"{truncated_base}..."
+            tag_len = len(tag_prefix) + 1 if tag_prefix else 0
+            available = 100 - tag_len
+            if available > 0:
+                title = f"{tag_prefix} {base_title[:available-3]}..."
             else:
-                # Tags alone exceed 100 chars - truncate tags
                 title = tag_prefix[:97] + "..."
-            
-            logger.debug(f"Title exceeded 100 chars, truncated to: '{title}' (length: {len(title)})")
         
-        # Final safety check - ensure title is exactly 100 chars or less
-        if len(title) > 100:
-            title = title[:100]
-            logger.warning(f"Title still exceeded 100 chars after truncation, forced to: '{title}' (length: {len(title)})")
-
-        logger.debug(f"Final title: '{title}' (length: {len(title)})")
-        return title
+        return title[:100]  # Final safety
