@@ -3,6 +3,25 @@ const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const { connectDatabase } = require('./database/db');
+const Logger = require('../utils/logger');
+const { validateEnv, validators } = require('../utils/envValidator');
+
+// Initialize logger
+const logger = new Logger('grammar-bot');
+
+// Validate environment variables
+try {
+  validateEnv({
+    DISCORD_TOKEN: {
+      required: true,
+      validator: validators.discordToken,
+      errorMessage: 'DISCORD_TOKEN is required and must be a valid Discord bot token',
+    },
+  }, logger);
+} catch (error) {
+  logger.error('Environment validation failed', error);
+  process.exit(1);
+}
 
 // Create Discord client
 const client = new Client({
@@ -16,10 +35,10 @@ const client = new Client({
 // Connect to database
 connectDatabase()
   .then((dbType) => {
-    console.log(`Database: ${dbType === 'mongodb' ? 'MongoDB' : 'JSON files'}`);
+    logger.info(`Database: ${dbType === 'mongodb' ? 'MongoDB' : 'JSON files'}`);
   })
   .catch((error) => {
-    console.error('Database connection error:', error);
+    logger.error('Database connection error', error);
   });
 
 // Initialize command collection
@@ -36,9 +55,9 @@ if (fs.existsSync(commandsPath)) {
 
     if ('data' in command && 'execute' in command) {
       client.commands.set(command.data.name, command);
-      console.log(`Loaded command: ${command.data.name}`);
+      logger.debug(`Loaded command: ${command.data.name}`);
     } else {
-      console.warn(`Command at ${filePath} is missing required "data" or "execute" property`);
+      logger.warn(`Command at ${filePath} is missing required "data" or "execute" property`);
     }
   }
 }
@@ -57,18 +76,18 @@ if (fs.existsSync(eventsPath)) {
     } else {
       client.on(event.name, (...args) => event.execute(...args));
     }
-    console.log(`Loaded event: ${event.name}`);
+    logger.debug(`Loaded event: ${event.name}`);
   }
 }
 
 // Error handling
 process.on('unhandledRejection', (error) => {
-  console.error('Unhandled promise rejection:', error);
+  logger.error('Unhandled promise rejection', error);
 });
 
 // Graceful shutdown handler
 async function gracefulShutdown() {
-  console.log('\nShutting down gracefully...');
+  logger.info('Shutting down gracefully...');
 
   // Cleanup cooldown cleanup interval from messageCreate event
   const messageCreateEvent = require('./events/messageCreate');
@@ -87,8 +106,8 @@ process.on('SIGTERM', gracefulShutdown);
 // Login to Discord
 client
   .login(process.env.DISCORD_TOKEN)
-  .then(() => console.log('Bot is logging in...'))
+  .then(() => logger.info('Bot is logging in...'))
   .catch((error) => {
-    console.error('Failed to login:', error);
+    logger.error('Failed to login', error);
     process.exit(1);
   });

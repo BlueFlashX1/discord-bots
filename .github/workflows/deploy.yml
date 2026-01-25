@@ -30,7 +30,8 @@ jobs:
             git clean -fd
 
             # Update dependencies for each bot
-            for bot in coding-practice-bot command-control-bot hangman-bot spelling-bee-bot grammar-bot "todoist bot" reddit-filter-bot youtube-monitor-bot; do
+            # hangman-bot removed - archived on 2026-01-23
+            for bot in coding-practice-bot command-control-bot spelling-bee-bot grammar-bot "todoist bot" reddit-filter-bot youtube-monitor-bot; do
               if [ -d "$bot" ] && [ -f "$bot/package.json" ]; then
                 echo "Updating dependencies for $bot..."
                 cd "$bot"

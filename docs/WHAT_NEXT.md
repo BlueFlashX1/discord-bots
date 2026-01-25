@@ -11,6 +11,7 @@ Your Discord bots are now:
 - ✅ Monitored and logged
 
 **How 24/7 Works:**
+
 - PM2 process manager keeps bots running
 - Auto-restarts if a bot crashes
 - `pm2 startup` ensures bots start after server reboots
@@ -92,19 +93,6 @@ pm2 stop all           # Stop all
 pm2 start all          # Start all
 pm2 stop [bot-name]    # Stop specific bot
 ```
-
-## 🚀 Initial Deployment (First Time Only)
-
-If you haven't deployed to VPS yet, see: `docs/INITIAL_DEPLOYMENT.md` or `docs/QUICK_DEPLOY.md`
-
-**Quick summary:**
-1. SSH to VPS: `ssh root@64.23.179.177`
-2. Clone repo: `git clone https://github.com/BlueFlashX1/discord-bots.git /root/discord-bots`
-3. Run: `cd /root/discord-bots && ./deploy.sh`
-4. Create `.env` files for each bot
-5. Restart: `pm2 restart all && pm2 save`
-
-**After this one-time setup, bots stay online 24/7 automatically!**
 
 ## ➕ Adding New Bots
 

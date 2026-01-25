@@ -17,6 +17,21 @@ Collection of Discord bots built with Node.js and Discord.js v14, using the Disc
 ./scripts/stop-all-bots.sh
 ```
 
+## ⚠️ CRITICAL: VPS Deployment Requirement
+
+**When fixing any bot, you MUST update BOTH:**
+1. Local/macOS version (development)
+2. VPS version (production at 64.23.179.177)
+
+**See:** [`docs/VPS-DEPLOYMENT-REQUIREMENT.md`](./docs/VPS-DEPLOYMENT-REQUIREMENT.md)
+
+**Quick update for grammar-bot:**
+```bash
+./scripts/update-grammar-bot-vps.sh
+```
+
+**AI assistants frequently forget to update VPS - always check this!**
+
 ---
 
 ## Bots

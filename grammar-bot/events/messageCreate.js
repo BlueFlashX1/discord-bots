@@ -114,10 +114,13 @@ async function processMessage(message) {
       );
 
       // Track message result (always call this!)
+      // Use errorTypesAll if available (includes all instances) for accurate stats
+      // Fallback to errorTypes (unique types) for backward compatibility
+      const errorTypesForTracking = result.errorTypesAll || result.errorTypes || [];
       await user.addMessageResult(
         result.hasErrors,
         result.errorCount || 0,
-        result.errorTypes || []
+        errorTypesForTracking
       );
 
       // If no errors, award quality bonus

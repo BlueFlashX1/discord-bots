@@ -85,18 +85,72 @@ class ProcessManager {
     }
 
     const processId = this.generateProcessId();
-    const directory = this.expandPath(commandConfig.directory);
-    const commandParts = commandConfig.command.split(' ');
-    const command = commandParts[0];
-    const args = commandParts.slice(1);
     const timeoutMs = commandConfig.timeout || DEFAULT_TIMEOUT_MS;
+
+    // Check if this command should run remotely via SSH
+    const isRemote = commandConfig.remote === true || commandConfig.ssh === true;
+
+    // For remote commands, use original path (with ~) so it expands on remote machine
+    // For local commands, expand path on current machine
+    const directory = isRemote ? commandConfig.directory : this.expandPath(commandConfig.directory);
+    let command, args;
+
+    if (isRemote) {
+      // Build SSH command to execute on local macOS machine
+      const sshHost = process.env.SSH_HOST || process.env.LOCAL_MACHINE_HOST;
+      const sshUser = process.env.SSH_USER || process.env.LOCAL_MACHINE_USER || os.userInfo().username;
+      const sshKey = process.env.SSH_KEY || process.env.SSH_KEY_PATH;
+      const sshPort = process.env.SSH_PORT || '22';
+
+      if (!sshHost) {
+        throw new Error('SSH_HOST or LOCAL_MACHINE_HOST environment variable must be set for remote commands');
+      }
+
+      // Construct SSH command: ssh -i key user@host "cd $HOME/path && source ~/.zshrc 2>/dev/null || source ~/.bashrc 2>/dev/null || true && command"
+      // Replace ~ with $HOME so it expands on remote (macOS) side
+      // Source shell profile to load PATH and other environment variables
+      // Use double quotes so $HOME expands on remote shell
+      // Escape any existing quotes in the path to prevent injection
+      const remoteDir = commandConfig.directory.replace(/^~/, '$HOME').replace(/'/g, "'\\''");
+      // Add Homebrew paths to PATH (Apple Silicon: /opt/homebrew/bin, Intel: /usr/local/bin)
+      // Escape $PATH so it expands on remote side, not VPS side
+      const remoteCommand = `cd "${remoteDir}" && export PATH=\\$PATH:/opt/homebrew/bin:/usr/local/bin && ${commandConfig.command}`;
+      const sshArgs = [];
+
+      if (sshKey) {
+        sshArgs.push('-i', sshKey);
+      }
+      sshArgs.push('-p', sshPort);
+      sshArgs.push('-o', 'StrictHostKeyChecking=no');
+      sshArgs.push('-o', 'UserKnownHostsFile=/dev/null');
+      sshArgs.push('-o', 'LogLevel=ERROR'); // Suppress SSH warnings
+      sshArgs.push(`${sshUser}@${sshHost}`);
+      sshArgs.push(remoteCommand);
+
+      command = 'ssh';
+      args = sshArgs;
+
+      logger.debug('Remote execution via SSH', {
+        processId,
+        sshHost,
+        sshUser,
+        sshKey: sshKey ? '***' : 'none',
+        remoteCommand
+      });
+    } else {
+      // Local execution
+      const commandParts = commandConfig.command.split(' ');
+      command = commandParts[0];
+      args = commandParts.slice(1);
+    }
 
     logger.debug('Process configuration', {
       processId,
       command,
       args,
       directory,
-      timeoutMs
+      timeoutMs,
+      isRemote
     });
 
     const processData = {
@@ -114,13 +168,29 @@ class ProcessManager {
     };
 
     try {
-      logger.debug('Spawning child process', { processId, command, args, cwd: directory });
+      logger.debug('Spawning child process', { processId, command, args, cwd: isRemote ? 'remote' : directory });
 
-      const childProcess = spawn(command, args, {
-        cwd: directory,
-        shell: true,
+      // For remote SSH commands, don't use shell (SSH handles it)
+      // For local commands, use explicit shell path to avoid ENOENT errors
+      const spawnOptions = {
         stdio: ['ignore', 'pipe', 'pipe'],
-      });
+      };
+
+      if (isRemote) {
+        // SSH commands don't need shell or cwd (handled in SSH command)
+        spawnOptions.cwd = undefined;
+        spawnOptions.shell = false;
+      } else {
+        // Local commands need shell and cwd
+        spawnOptions.cwd = directory;
+        // Use explicit shell path to avoid ENOENT errors
+        // Prefer user's shell, fallback to /bin/zsh (macOS default) or /bin/sh
+        const shellPath = process.env.SHELL || '/bin/zsh' || '/bin/sh';
+        logger.debug('Using shell', { shellPath });
+        spawnOptions.shell = shellPath;
+      }
+
+      const childProcess = spawn(command, args, spawnOptions);
 
       processData.process = childProcess;
       processData.status = 'running';
@@ -162,7 +232,14 @@ class ProcessManager {
 
       // Capture stderr
       childProcess.stderr.on('data', (data) => {
-        const lines = data.toString().split('\n').filter(line => line.trim());
+        const lines = data.toString().split('\n').filter(line => {
+          const trimmed = line.trim();
+          // Filter out SSH connection warnings (known hosts, etc.)
+          if (trimmed.includes('Permanently added') && trimmed.includes('to the list of known hosts')) {
+            return false;
+          }
+          return trimmed.length > 0;
+        });
         processData.fullError.push(...lines);
         processData.error.push(...lines);
         logger.debug('stderr received', { processId, lineCount: lines.length, totalLines: processData.fullError.length });

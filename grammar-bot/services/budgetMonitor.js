@@ -1,14 +1,73 @@
 const fs = require('fs');
 const path = require('path');
 
-// Conditional loading - only if MongoDB is available
+// Conditional loading - only if MongoDB is available and connected
 let BudgetTracking = null;
+let jsonModeForced = false; // Track if we've forced JSON mode due to connection issues
+
 function getBudgetTracking() {
-  if (BudgetTracking !== null) return BudgetTracking;
+  // If we've already forced JSON mode, don't try MongoDB again
+  if (jsonModeForced) {
+    return null;
+  }
+  
+  if (BudgetTracking !== null) {
+    // Double-check connection is still valid before returning
+    try {
+      const mongoose = require('mongoose');
+      if (mongoose.connection.readyState !== 1) {
+        // Connection lost, force JSON mode
+        BudgetTracking = null;
+        jsonModeForced = true;
+        console.log('[BudgetMonitor] MongoDB connection lost, forcing JSON mode');
+        return null;
+      }
+      return BudgetTracking;
+    } catch (error) {
+      // Mongoose not available, force JSON mode
+      BudgetTracking = null;
+      jsonModeForced = true;
+      return null;
+    }
+  }
+  
+  // Check if database is using JSON mode (MongoDB not connected)
   try {
+    const db = require('../database/db');
+    if (db.isUsingJSON && db.isUsingJSON()) {
+      jsonModeForced = true;
+      return null; // Force JSON mode
+    }
+  } catch (error) {
+    // db module might not be available, continue to try loading model
+  }
+  
+  // Check if MONGODB_URI is set - if not, use JSON mode
+  if (!process.env.MONGODB_URI || process.env.MONGODB_URI.trim() === '') {
+    console.log('[BudgetMonitor] No MONGODB_URI set, using JSON mode');
+    jsonModeForced = true;
+    return null;
+  }
+  
+  // Only try to load MongoDB model if we're not in JSON mode
+  try {
+    const mongoose = require('mongoose');
+    
+    // Check connection state: 0=disconnected, 1=connected, 2=connecting, 3=disconnecting
+    const readyState = mongoose.connection.readyState;
+    if (readyState !== 1) {
+      // Not connected (0, 2, or 3) - use JSON mode
+      console.log(`[BudgetMonitor] MongoDB not connected (readyState: ${readyState}), using JSON mode`);
+      jsonModeForced = true;
+      return null;
+    }
+    
+    // Connection is ready, try to load model
     BudgetTracking = require('../database/models/BudgetTracking');
     return BudgetTracking;
   } catch (error) {
+    console.log('[BudgetMonitor] Error loading MongoDB model, using JSON mode:', error.message);
+    jsonModeForced = true;
     return null; // Will use JSON storage
   }
 }
@@ -27,18 +86,40 @@ function initBudgetJSON() {
 }
 
 function readBudgetJSON() {
-  initBudgetJSON();
   try {
+    initBudgetJSON();
+    if (!fs.existsSync(BUDGET_FILE)) {
+      console.warn('[BudgetMonitor] Budget file does not exist, creating new one');
+      writeBudgetJSON({});
+      return {};
+    }
     const data = fs.readFileSync(BUDGET_FILE, 'utf8');
-    return JSON.parse(data || '{}');
+    if (!data || data.trim() === '') {
+      console.warn('[BudgetMonitor] Budget file is empty, initializing with empty object');
+      return {};
+    }
+    return JSON.parse(data);
   } catch (error) {
+    console.error('[BudgetMonitor] Error reading budget JSON:', error.message);
+    // Return empty object on error - will be initialized on first write
     return {};
   }
 }
 
 function writeBudgetJSON(data) {
-  initBudgetJSON();
-  fs.writeFileSync(BUDGET_FILE, JSON.stringify(data, null, 2));
+  try {
+    initBudgetJSON();
+    // Write to a temporary file first, then rename (atomic write)
+    const tempFile = BUDGET_FILE + '.tmp';
+    fs.writeFileSync(tempFile, JSON.stringify(data, null, 2), 'utf8');
+    fs.renameSync(tempFile, BUDGET_FILE);
+  } catch (error) {
+    console.error('[BudgetMonitor] Error writing budget JSON:', error.message);
+    console.error('[BudgetMonitor] Error stack:', error.stack);
+    // Don't throw - log and continue, data will be lost but system won't crash
+    // Caller should handle gracefully
+    console.warn('[BudgetMonitor] Budget data write failed, but continuing operation');
+  }
 }
 
 function getTodayDate() {
@@ -53,11 +134,65 @@ function getCurrentMonth() {
 }
 
 function getTodayTrackingJSON(budgetLimit) {
-  const data = readBudgetJSON();
-  const today = getTodayDate();
+  try {
+    const data = readBudgetJSON();
+    const today = getTodayDate();
 
-  if (!data[today]) {
-    data[today] = {
+    if (!data[today]) {
+      const newTracking = {
+        date: today,
+        totalRequests: 0,
+        successfulRequests: 0,
+        failedRequests: 0,
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalTokens: 0,
+        totalCost: 0,
+        budgetLimit: budgetLimit,
+        budgetExceeded: false,
+        modelUsage: {},
+        hourlyStats: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      data[today] = newTracking;
+      try {
+        writeBudgetJSON(data);
+      } catch (writeError) {
+        console.error('Error writing budget JSON during initialization:', writeError);
+        // Continue anyway - we'll return the in-memory object
+      }
+    }
+
+    const tracking = data[today];
+    if (!tracking) {
+      console.error('Error: Failed to create or retrieve tracking for today:', today);
+      // Return a minimal valid tracking object instead of null
+      return {
+        date: today,
+        totalRequests: 0,
+        successfulRequests: 0,
+        failedRequests: 0,
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalTokens: 0,
+        totalCost: 0,
+        budgetLimit: budgetLimit,
+        budgetExceeded: false,
+        modelUsage: {},
+        hourlyStats: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
+    return tracking;
+  } catch (error) {
+    console.error('Error in getTodayTrackingJSON:', error);
+    console.error('Error stack:', error.stack);
+    // Return a minimal valid tracking object instead of null
+    const today = getTodayDate();
+    return {
       date: today,
       totalRequests: 0,
       successfulRequests: 0,
@@ -73,10 +208,7 @@ function getTodayTrackingJSON(budgetLimit) {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    writeBudgetJSON(data);
   }
-
-  return data[today];
 }
 
 function saveTodayTrackingJSON(tracking) {
@@ -229,57 +361,139 @@ class BudgetMonitor {
    * Get budget status
    */
   async getBudgetStatus() {
+    // Default fallback status to return on any error
+    const getDefaultStatus = () => ({
+      date: getTodayDate(),
+      totalCost: 0,
+      budgetLimit: this.dailyLimit,
+      remainingBudget: this.dailyLimit,
+      usagePercentage: 0,
+      budgetExceeded: false,
+      totalRequests: 0,
+      successfulRequests: 0,
+      failedRequests: 0,
+      totalTokens: 0,
+      costPerRequest: 0,
+      avgTokensPerRequest: 0
+    });
+
     try {
+      console.log('[BudgetMonitor] getBudgetStatus() called');
       const BudgetTrackingModel = getBudgetTracking();
+      console.log('[BudgetMonitor] BudgetTrackingModel:', BudgetTrackingModel ? 'MongoDB' : 'JSON');
       if (BudgetTrackingModel) {
         // MongoDB mode
-        const tracking = await BudgetTrackingModel.getTodayTracking();
-        return {
-          date: tracking.date,
-          totalCost: tracking.totalCost,
-          budgetLimit: tracking.budgetLimit,
-          remainingBudget: tracking.getRemainingBudget(),
-          usagePercentage: tracking.getUsagePercentage(),
-          budgetExceeded: tracking.budgetExceeded,
-          totalRequests: tracking.totalRequests,
-          successfulRequests: tracking.successfulRequests,
-          failedRequests: tracking.failedRequests,
-          totalTokens: tracking.totalTokens,
-          costPerRequest: tracking.costPerRequest,
-          avgTokensPerRequest: tracking.avgTokensPerRequest
-        };
+        try {
+          const tracking = await BudgetTrackingModel.getTodayTracking();
+          if (!tracking) {
+            console.error('Error getting budget status: MongoDB tracking is null');
+            return getDefaultStatus();
+          }
+          return {
+            date: tracking.date,
+            totalCost: tracking.totalCost || 0,
+            budgetLimit: tracking.budgetLimit || this.dailyLimit,
+            remainingBudget: tracking.getRemainingBudget ? tracking.getRemainingBudget() : Math.max(0, (tracking.budgetLimit || this.dailyLimit) - (tracking.totalCost || 0)),
+            usagePercentage: tracking.getUsagePercentage ? parseFloat(tracking.getUsagePercentage()) : (tracking.budgetLimit > 0 ? parseFloat((((tracking.totalCost || 0) / tracking.budgetLimit) * 100).toFixed(1)) : 0),
+            budgetExceeded: tracking.budgetExceeded || false,
+            totalRequests: tracking.totalRequests || 0,
+            successfulRequests: tracking.successfulRequests || 0,
+            failedRequests: tracking.failedRequests || 0,
+            totalTokens: tracking.totalTokens || 0,
+            costPerRequest: tracking.costPerRequest || 0,
+            avgTokensPerRequest: tracking.avgTokensPerRequest || 0
+          };
+        } catch (mongoError) {
+          console.error('Error in MongoDB mode:', mongoError.message);
+          // If MongoDB times out or fails, force JSON mode for future calls
+          if (mongoError.name === 'MongooseError' || mongoError.message.includes('buffering timed out') || mongoError.message.includes('timeout')) {
+            console.error('[BudgetMonitor] MongoDB timeout detected, forcing JSON mode');
+            jsonModeForced = true;
+            BudgetTracking = null;
+            // Fall through to JSON mode
+            console.log('[BudgetMonitor] Falling back to JSON mode...');
+            const tracking = getTodayTrackingJSON(this.dailyLimit);
+            if (!tracking) {
+              return getDefaultStatus();
+            }
+            const costPerRequest = tracking.totalRequests > 0
+              ? parseFloat((tracking.totalCost / tracking.totalRequests).toFixed(4))
+              : 0;
+            const avgTokensPerRequest = tracking.totalRequests > 0
+              ? Math.round(tracking.totalTokens / tracking.totalRequests)
+              : 0;
+            const usagePercentage = tracking.budgetLimit > 0
+              ? parseFloat(((tracking.totalCost / tracking.budgetLimit) * 100).toFixed(1))
+              : 0;
+
+            return {
+              date: tracking.date,
+              totalCost: tracking.totalCost || 0,
+              budgetLimit: tracking.budgetLimit || this.dailyLimit,
+              remainingBudget: Math.max(0, (tracking.budgetLimit || this.dailyLimit) - (tracking.totalCost || 0)),
+              usagePercentage: usagePercentage,
+              budgetExceeded: tracking.budgetExceeded || false,
+              totalRequests: tracking.totalRequests || 0,
+              successfulRequests: tracking.successfulRequests || 0,
+              failedRequests: tracking.failedRequests || 0,
+              totalTokens: tracking.totalTokens || 0,
+              costPerRequest: costPerRequest,
+              avgTokensPerRequest: avgTokensPerRequest
+            };
+          }
+          return getDefaultStatus();
+        }
       } else {
         // JSON mode
-        const tracking = getTodayTrackingJSON(this.dailyLimit);
-        const costPerRequest = tracking.totalRequests > 0
-          ? parseFloat((tracking.totalCost / tracking.totalRequests).toFixed(4))
-          : 0;
-        const avgTokensPerRequest = tracking.totalRequests > 0
-          ? Math.round(tracking.totalTokens / tracking.totalRequests)
-          : 0;
-        const usagePercentage = tracking.budgetLimit > 0
-          ? parseFloat(((tracking.totalCost / tracking.budgetLimit) * 100).toFixed(1))
-          : 0;
+        console.log('[BudgetMonitor] Using JSON mode, calling getTodayTrackingJSON()');
+        try {
+          const tracking = getTodayTrackingJSON(this.dailyLimit);
+          console.log('[BudgetMonitor] Tracking result:', tracking ? 'Success' : 'Failed');
+          if (!tracking) {
+            console.error('Error getting budget status: JSON tracking is null or failed to create');
+            return getDefaultStatus();
+          }
+          const costPerRequest = tracking.totalRequests > 0
+            ? parseFloat((tracking.totalCost / tracking.totalRequests).toFixed(4))
+            : 0;
+          const avgTokensPerRequest = tracking.totalRequests > 0
+            ? Math.round(tracking.totalTokens / tracking.totalRequests)
+            : 0;
+          const usagePercentage = tracking.budgetLimit > 0
+            ? parseFloat(((tracking.totalCost / tracking.budgetLimit) * 100).toFixed(1))
+            : 0;
 
-        return {
-          date: tracking.date,
-          totalCost: tracking.totalCost,
-          budgetLimit: tracking.budgetLimit,
-          remainingBudget: Math.max(0, tracking.budgetLimit - tracking.totalCost),
-          usagePercentage: usagePercentage,
-          budgetExceeded: tracking.budgetExceeded,
-          totalRequests: tracking.totalRequests,
-          successfulRequests: tracking.successfulRequests,
-          failedRequests: tracking.failedRequests,
-          totalTokens: tracking.totalTokens,
-          costPerRequest: costPerRequest,
-          avgTokensPerRequest: avgTokensPerRequest
-        };
+          return {
+            date: tracking.date,
+            totalCost: tracking.totalCost || 0,
+            budgetLimit: tracking.budgetLimit || this.dailyLimit,
+            remainingBudget: Math.max(0, (tracking.budgetLimit || this.dailyLimit) - (tracking.totalCost || 0)),
+            usagePercentage: usagePercentage,
+            budgetExceeded: tracking.budgetExceeded || false,
+            totalRequests: tracking.totalRequests || 0,
+            successfulRequests: tracking.successfulRequests || 0,
+            failedRequests: tracking.failedRequests || 0,
+            totalTokens: tracking.totalTokens || 0,
+            costPerRequest: costPerRequest,
+            avgTokensPerRequest: avgTokensPerRequest
+          };
+        } catch (jsonError) {
+          console.error('Error in JSON mode:', jsonError);
+          console.error('JSON error stack:', jsonError.stack);
+          return getDefaultStatus();
+        }
       }
 
     } catch (error) {
       console.error('Error getting budget status:', error);
-      return null;
+      console.error('Error stack:', error.stack);
+      console.error('Error details:', {
+        message: error.message,
+        name: error.name,
+        code: error.code
+      });
+      // Always return a default status instead of null
+      return getDefaultStatus();
     }
   }
 
