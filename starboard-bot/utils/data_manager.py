@@ -32,7 +32,7 @@ class DataManager:
         )
 
     def _load_json(self, file_path: Path, default: Any = None) -> Any:
-        """Load JSON file."""
+        """Load JSON file (synchronous but fast for small files)."""
         try:
             if file_path.exists():
                 with open(file_path, "r", encoding="utf-8") as f:
@@ -50,10 +50,13 @@ class DataManager:
             return default or {}
 
     def _save_json(self, file_path: Path, data: Any):
-        """Save JSON file."""
+        """Save JSON file (synchronous but fast for small files)."""
         try:
-            with open(file_path, "w", encoding="utf-8") as f:
+            # Use atomic write: write to temp file, then rename (safer)
+            temp_path = file_path.with_suffix(file_path.suffix + '.tmp')
+            with open(temp_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
+            temp_path.replace(file_path)  # Atomic rename
             logger.debug(f"Saved data to {file_path.name}")
         except IOError as e:
             logger.error(f"IO error writing {file_path.name}: {e}", exc_info=True)
