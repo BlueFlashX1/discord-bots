@@ -118,8 +118,14 @@ class ReminderBot(commands.Bot):
 
 async def main():
     """Main entry point."""
+    # Type narrowing: check token inside function for better Pyright recognition
+    token = DISCORD_TOKEN
+    if not token:
+        logger.error("DISCORD_TOKEN not found in environment variables")
+        sys.exit(1)
+    
     bot = ReminderBot()
-    await bot.start(DISCORD_TOKEN)
+    await bot.start(token)
 
 
 if __name__ == "__main__":

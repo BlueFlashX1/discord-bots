@@ -124,8 +124,11 @@ class ReminderService:
                     continue
 
                 # Type narrowing: user is guaranteed to be discord.User after None check
+                # Store in local variable for lambda capture (Pyright type narrowing)
+                user_obj: discord.User = user
+                
                 # Get user mention safely
-                user_mention = getattr(user, 'mention', f"<@{user_id}>")
+                user_mention = getattr(user_obj, 'mention', f"<@{user_id}>")
 
                 # Send reminder
                 reminder_text = f"⏰ **Reminder:** {message}"
@@ -137,38 +140,39 @@ class ReminderService:
                     try:
                         channel = self.bot.get_channel(channel_id)
                         # Check if channel exists and is Messageable (has send method)
-                        # Use getattr for type-safe access
-                        send_method = getattr(channel, 'send', None) if channel else None
-                        if send_method:
+                        # Use isinstance check for type safety
+                        if channel and isinstance(channel, discord.abc.Messageable):
                             # Use retry logic for channel send
+                            # Store channel in local variable for lambda capture
+                            channel_obj: discord.abc.Messageable = channel
                             sent = await retry_discord_api(
-                                lambda: send_method(f"{user_mention} {reminder_text}"),
+                                lambda: channel_obj.send(f"{user_mention} {reminder_text}"),
                                 operation_name=f"Send reminder to channel {channel_id}"
                             )
                             if not sent:
                                 # Fallback to DM if channel send failed
                                 logger.debug(f"Channel send failed, falling back to DM for user {user_id}")
                                 await retry_discord_api(
-                                    lambda: user.send(reminder_text),
+                                    lambda: user_obj.send(reminder_text),
                                     operation_name=f"Send reminder DM to user {user_id}"
                                 )
                         else:
                             # Channel not found or not sendable, send DM
                             logger.debug(f"Channel {channel_id} not found or not sendable, sending DM to user {user_id}")
                             await retry_discord_api(
-                                lambda: user.send(reminder_text),
+                                lambda: user_obj.send(reminder_text),
                                 operation_name=f"Send reminder DM to user {user_id}"
                             )
                     except Exception as e:
                         logger.warning(f"Error accessing channel {channel_id}: {e}, sending DM instead")
                         await retry_discord_api(
-                            lambda: user.send(reminder_text),
+                            lambda: user_obj.send(reminder_text),
                             operation_name=f"Send reminder DM to user {user_id}"
                         )
                 else:
                     # Send DM
                     sent = await retry_discord_api(
-                        lambda: user.send(reminder_text),
+                        lambda: user_obj.send(reminder_text),
                         operation_name=f"Send reminder DM to user {user_id}"
                     )
                     if not sent:
