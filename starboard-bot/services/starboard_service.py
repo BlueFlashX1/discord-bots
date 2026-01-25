@@ -241,8 +241,8 @@ class StarboardService:
             # Get message content (simplified - just get text or embed title)
             content = message.content.strip() if message.content else ""
             if not content and message.embeds:
-                embed = message.embeds[0]
-                content = embed.title or embed.description or ""
+                msg_embed = message.embeds[0]
+                content = msg_embed.title or msg_embed.description or ""
 
             # Quick tag classification (simplified - content + channel only)
             tags = []
