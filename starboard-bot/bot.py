@@ -114,6 +114,9 @@ class StarboardBot(commands.Bot):
         # Initialize services
         data = DataManager()
         self.starboard_service = StarboardService(self, data)
+        
+        # Pre-warm forum channel cache for instant access
+        await self.starboard_service.warm_forum_channel_cache()
 
         logger.info("Starboard service initialized and ready")
         logger.info("✅ Event handlers registered: on_reaction_add, on_raw_reaction_add, on_reaction_remove")

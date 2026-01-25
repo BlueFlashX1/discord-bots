@@ -38,6 +38,23 @@ class StarboardService:
             logger.warning(f"Failed to pre-warm cache: {e}")
         
         logger.info("StarboardService initialized")
+    
+    async def warm_forum_channel_cache(self):
+        """Pre-warm forum channel cache after bot is ready."""
+        try:
+            config = self.data.get_config()
+            for guild_id_str, guild_config in config.items():
+                forum_channel_id = guild_config.get("forum_channel_id")
+                if forum_channel_id:
+                    forum_channel = self.bot.get_channel(forum_channel_id)
+                    if forum_channel and isinstance(forum_channel, discord.ForumChannel):
+                        self._forum_channel_cache[forum_channel_id] = forum_channel
+                        # Also cache tag lookup
+                        tag_lookup = {tag.name: tag for tag in forum_channel.available_tags}
+                        self._tag_lookup_cache[forum_channel_id] = tag_lookup
+                        logger.debug(f"Pre-warmed forum channel cache: {forum_channel.name} ({forum_channel_id})")
+        except Exception as e:
+            logger.warning(f"Failed to pre-warm forum channel cache: {e}")
 
     async def handle_reaction_add(
         self, reaction: discord.Reaction, user: discord.Member
@@ -190,9 +207,10 @@ class StarboardService:
             if self.data.is_message_starboarded(message.id):
                 self._processing_messages.discard(message.id)
                 return
-            # Use cached forum channel if available (avoid repeated lookups)
+            # Use cached forum channel (pre-warmed on startup, should always be available)
             forum_channel = self._forum_channel_cache.get(forum_channel_id)
             if forum_channel is None:
+                # Fallback: fetch if not cached (shouldn't happen, but handle gracefully)
                 forum_channel = self.bot.get_channel(forum_channel_id)
                 if forum_channel:
                     self._forum_channel_cache[forum_channel_id] = forum_channel
