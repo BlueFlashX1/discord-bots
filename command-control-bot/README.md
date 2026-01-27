@@ -12,9 +12,10 @@ Discord bot for managing and controlling other bots via commands.
 ## Setup
 
 1. Copy `.env.example` to `.env` and fill in your Discord bot token
-2. Run `npm install` to install dependencies
-3. Run `npm run deploy` to register slash commands
-4. Run `npm start` to start the bot
+2. Copy `config/commands.json.example` to `config/commands.json` and customize with your commands
+3. Run `npm install` to install dependencies
+4. Run `npm run deploy` to register slash commands
+5. Run `npm start` to start the bot
 
 ## Environment Variables
 
