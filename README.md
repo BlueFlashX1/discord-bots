@@ -54,9 +54,6 @@ See `.github/workflows/deploy.yml` for deployment configuration.
 **Why:** Manage Discord server subscriptions and member access control.
 **Note:** Local development only - not deployed to VPS.
 
-### VPS Monitoring Bot
-**Why:** Monitor VPS health, resource usage, and bot status directly from Discord.
-
 ## 🛠️ Tech Stack
 
 - **Node.js** (Discord.js v14) - Most bots

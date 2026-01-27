@@ -20,7 +20,8 @@ cd /root/discord-bots
 # For each bot, copy .env.example to .env and edit
 # Note: subscription-bot is local only (not deployed to VPS)
 # Note: spelling-bee-bot removed (no longer needed)
-for bot in coding-practice-bot grammar-bot github-bot reminder-bot starboard-bot exercism-bot "todoist bot" reddit-filter-bot youtube-monitor-bot command-control-bot vps-monitoring-bot; do
+# Note: vps-monitoring-bot removed - not needed (2026-01-27)
+for bot in coding-practice-bot grammar-bot github-bot reminder-bot starboard-bot exercism-bot "todoist bot" reddit-filter-bot youtube-monitor-bot command-control-bot; do
   if [ -d "$bot" ] && [ -f "$bot/.env.example" ]; then
     echo "Setting up $bot..."
     cp "$bot/.env.example" "$bot/.env"
@@ -349,31 +350,7 @@ CLIENT_ID=your_discord_client_id_here
 
 ---
 
-### 12. VPS Monitoring Bot
-**Location:** `/root/discord-bots/vps-monitoring-bot/.env`
-
-```bash
-# Discord Bot Configuration
-DISCORD_TOKEN=your_discord_bot_token_here
-CLIENT_ID=your_discord_client_id_here
-
-# VPS Connection Configuration
-VPS_HOST=root@64.23.179.177
-VPS_SSH_KEY=~/.ssh/id_rsa_deploy
-```
-
-**Required:**
-- `DISCORD_TOKEN` - Discord bot token
-- `CLIENT_ID` - Discord application client ID
-- `VPS_HOST` - VPS host in format `user@host` (e.g., `root@64.23.179.177`)
-- `VPS_SSH_KEY` - Path to SSH private key for VPS access
-
-**Note:** On VPS, SSH key path should be: `/root/.ssh/id_rsa_deploy`
-Set permissions: `chmod 600 ~/.ssh/id_rsa_deploy`
-
----
-
-### 13. MonitoRSS (News Bots)
+### 12. MonitoRSS (News Bots)
 **Location:** `/root/discord-bots/news-bots/MonitoRSS/.env`
 
 **Note:** MonitoRSS uses a single `.env` file for all services. All services share the same bot token but use different variable names.
