@@ -145,3 +145,6 @@ _archive/
 
 # Documentation files (local only, not needed in remote)
 ENV_SETUP.md
+
+# GitHub workflows (local only, manual deployment)
+.github/
