@@ -200,15 +200,8 @@ module.exports = {
         BACKEND_API_USER_FEEDS_API_KEY: 'user-feeds-api-key',
         BACKEND_API_FEED_REQUESTS_API_KEY: 'feed-requests-api-key',
         LOG_LEVEL: 'info',
-        // Discord configuration (from .env file, but also set here for PM2)
-        BACKEND_API_DISCORD_BOT_TOKEN: 'MTQ2MjI3OTAzODQ5MTAzMzcyMQ.G_havc.2ecAEKUnVkUqyAIoXPwJ_8_Kr8PnoUdWCQnaqw',
-        BACKEND_API_DISCORD_CLIENT_ID: '1462279038491033721',
-        BACKEND_API_DISCORD_CLIENT_SECRET: 'xIBNEOeXU7iJcuXH-OhUExlmVFUezuT5',
-        BACKEND_API_DISCORD_REDIRECT_URI: 'http://159.26.99.205.nip.io:8000/api/v1/discord/callback-v2',
-        BACKEND_API_LOGIN_REDIRECT_URI: 'http://159.26.99.205.nip.io:8000',
-        BACKEND_API_MONGODB_URI: 'mongodb://localhost:27017/rss',
-        BACKEND_API_SESSION_SECRET: '6a69102b370ce2431decfe9452e4bfb3d069f4e69502ca1f33fe9ce0519eef63',
-        BACKEND_API_SESSION_SALT: '95def2cf3c4cefc2',
+        // All sensitive values loaded from .env file via DOTENV_CONFIG_PATH
+        // DO NOT hardcode tokens, secrets, or database URIs here
         // Point NestJS ConfigModule to parent .env file
         DOTENV_CONFIG_PATH: '/root/discord-bots/news-bots/MonitoRSS/.env',
       },
@@ -315,23 +308,8 @@ module.exports = {
       max_memory_restart: '256M',
       env: {
         NODE_ENV: 'production',
-        // Discord configuration (from .env file, but also set here for PM2)
-        BACKEND_API_DISCORD_BOT_TOKEN: 'MTQ2MjI3OTAzODQ5MTAzMzcyMQ.G_havc.2ecAEKUnVkUqyAIoXPwJ_8_Kr8PnoUdWCQnaqw',
-        BACKEND_API_DISCORD_CLIENT_ID: '1462279038491033721',
-        BACKEND_API_DISCORD_CLIENT_SECRET: 'xIBNEOeXU7iJcuXH-OhUExlmVFUezuT5',
-        BACKEND_API_DISCORD_REDIRECT_URI: 'http://159.26.99.205.nip.io:8000/api/v1/discord/callback-v2',
-        BACKEND_API_LOGIN_REDIRECT_URI: 'http://159.26.99.205.nip.io:8000',
-        BACKEND_API_MONGODB_URI: 'mongodb://localhost:27017/rss',
-        BACKEND_API_SESSION_SECRET: '6a69102b370ce2431decfe9452e4bfb3d069f4e69502ca1f33fe9ce0519eef63',
-        BACKEND_API_SESSION_SALT: '95def2cf3c4cefc2',
-        BACKEND_API_DEFAULT_REFRESH_RATE_MINUTES: '60',
-        BACKEND_API_DEFAULT_MAX_FEEDS: '999999',
-        BACKEND_API_FEED_USER_AGENT: 'MonitoRSS',
-        BACKEND_API_FEED_REQUESTS_API_KEY: 'feed-requests-api-key',
-        BACKEND_API_FEED_REQUESTS_API_HOST: 'http://localhost:5000',
-        BACKEND_API_USER_FEEDS_API_HOST: 'http://localhost:5000',
-        BACKEND_API_USER_FEEDS_API_KEY: 'user-feeds-api-key',
-        BACKEND_API_RABBITMQ_BROKER_URL: 'amqp://guest:guest@localhost:5672/',
+        // All sensitive values loaded from .env file via DOTENV_CONFIG_PATH
+        // DO NOT hardcode tokens, secrets, database URIs, or API keys here
         // Point NestJS ConfigModule to parent .env file
         DOTENV_CONFIG_PATH: '/root/discord-bots/news-bots/MonitoRSS/.env',
       },
