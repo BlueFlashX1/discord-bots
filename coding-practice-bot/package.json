@@ -7,7 +7,7 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "deploy": "node deploy-commands.js",
-    "scrape": "node scripts/scrape-problems.js"
+    "scrape": "node ../scripts/scrape-problems.js"
   },
   "keywords": [
     "discord",
