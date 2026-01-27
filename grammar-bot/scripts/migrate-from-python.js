@@ -7,7 +7,7 @@
  *   node scripts/migrate-from-python.js [path-to-gamification.json]
  *
  * Default path:
- *   ~/Documents/DEVELOPMENT/Python-projects/active/discord-bots/bots/grammar-teacher-bot/data/gamification.json
+ *   ~/path/to/python-grammar-bot/data/gamification.json
  */
 
 const mongoose = require('mongoose');
@@ -17,7 +17,7 @@ const { getDatabase } = require('../database/db');
 
 const DEFAULT_PYTHON_DATA = path.join(
   process.env.HOME,
-  'Documents/DEVELOPMENT/Python-projects/active/discord-bots/bots/grammar-teacher-bot/data/gamification.json'
+  'path/to/python-grammar-bot/data/gamification.json'
 );
 
 class GrammarMigration {
