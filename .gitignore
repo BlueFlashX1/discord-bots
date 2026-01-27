@@ -71,17 +71,59 @@ keys/
 *.key
 *.cert
 
-# Python (if any Python bots)
+# ============================================================================
+# PYTHON - Cache & Compiled Files (if any Python bots)
+# ============================================================================
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
+*.pyd
 .Python
+
+# Virtual environments
 venv/
+.venv/
 env/
 ENV/
+env.bak/
+venv.bak/
+
+# Distribution / packaging
+*.egg-info/
+dist/
+build/
+eggs/
+.eggs/
+wheels/
+*.egg
+
+# Unit test / coverage reports
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+.cache/
 
 # Archives
 *.zip
 *.tar.gz
 *.rar
+_archive/
+discord-bots-python-backup-20251225/
+.clinerules/byterover-rules.md
+.kilocode/rules/byterover-rules.md
+.roo/rules/byterover-rules.md
+.windsurf/rules/byterover-rules.md
+.cursor/rules/byterover-rules.mdc
+.kiro/steering/byterover-rules.md
+.qoder/rules/byterover-rules.md
+.augment/rules/byterover-rules.md
+
+# Development/Setup files (not needed in production)
+docs/
+scripts/
+*.sh
+!**/deploy-commands.js
+!**/deploy-commands.py

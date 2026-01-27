@@ -1,260 +1,88 @@
 # Discord Bots Collection
 
-Collection of Discord bots built with Node.js and Discord.js v14, using the Discobase framework.
+Collection of production Discord bots built with Node.js and Python, deployed to DigitalOcean VPS. All bots were developed with **Cursor AI assistance**.
 
----
+## 🚀 Hosting & Deployment
 
-## Quick Start
+All bots run 24/7 on a **DigitalOcean VPS** using **PM2** for process management. Deployment is fully automated via GitHub Actions:
 
-```bash
-# Start all bots
-./scripts/start-all-bots.sh
+1. **Push to `main` branch** → GitHub Actions automatically triggers
+2. **SSH to VPS** → Pulls latest code from repository
+3. **Updates dependencies** → Installs/updates npm packages for each bot
+4. **Restarts bots** → PM2 reloads all processes from `ecosystem.config.js`
 
-# Check status
-./scripts/check-bots-status.sh
+**No manual commands needed** - bots stay running automatically and update on every push. PM2 handles auto-restart on crashes and manages all processes.
 
-# Stop all bots
-./scripts/stop-all-bots.sh
-```
+See `.github/workflows/deploy.yml` for deployment configuration.
 
-## ⚠️ CRITICAL: VPS Deployment Requirement
-
-**When fixing any bot, you MUST update BOTH:**
-1. Local/macOS version (development)
-2. VPS version (production at 64.23.179.177)
-
-**See:** [`docs/VPS-DEPLOYMENT-REQUIREMENT.md`](./docs/VPS-DEPLOYMENT-REQUIREMENT.md)
-
-**Quick update for grammar-bot:**
-```bash
-./scripts/update-grammar-bot-vps.sh
-```
-
-**AI assistants frequently forget to update VPS - always check this!**
-
----
-
-## Bots
+## 🤖 Bots
 
 ### Grammar Bot
+**Why:** AI-powered grammar checking to help users improve writing. Uses OpenAI GPT-4o-mini for real-time grammar detection with gamification (points, achievements, PvP battles).
 
-AI-powered grammar correction bot with gamification, PvP battles, and shop system.
+### Todoist Bot
+**Why:** Integrate Todoist task management into Discord. Syncs tasks, sends daily overviews, and allows task creation/completion directly from Discord.
 
-- **Location:** `grammar-bot/`
-- **Features:** Auto grammar checking, stats tracking, achievements, PvP battles, shop
-- **Docs:** `grammar-bot/README.md`, `grammar-bot/SLASH-COMMANDS-GUIDE.md`
+### Reminder Bot
+**Why:** Never miss deadlines. Set flexible reminders (one-time or recurring) that send notifications to channels or DMs.
 
-### Hangman Bot
+### Starboard Bot
+**Why:** Automatically save starred messages to a forum channel with intelligent auto-tagging and title standardization for better organization.
 
-Word guessing game bot with leaderboards and shop system.
+### GitHub Bot
+**Why:** Track GitHub repositories, monitor releases, and view contribution statistics without leaving Discord.
 
-- **Location:** `hangman-bot/`
-- **Features:** Hangman games, leaderboards, shop, weekly resets
-- **Docs:** `hangman-bot/README.md`
+### Exercism Bot
+**Why:** Daily coding practice. Delivers Exercism problems to Discord, tracks submissions, and manages programming language tracks.
 
-### Spelling Bee Bot
+### Coding Practice Bot
+**Why:** Daily coding problems from LeetCode/Codewars. Automatically posts problems, validates solutions, and tracks progress with streaks.
 
-Spelling challenge bot with timed sessions.
+### Command Control Bot
+**Why:** Remote server management. Execute shell commands via Discord buttons with real-time output streaming and process management.
 
-- **Location:** `spelling-bee-bot/`
-- **Features:** Spelling challenges, timed sessions, leaderboards
-- **Docs:** `spelling-bee-bot/README.md`
+### Reddit Filter Bot
+**Why:** Monitor Reddit subreddits and post filtered content based on keywords to Discord channels.
 
----
+### YouTube Monitor Bot
+**Why:** Track YouTube channels and automatically post new videos to Discord with optional notifications.
 
-## Directory Structure
+### MonitoRSS (News Bots)
+**Why:** Deliver customized RSS/news feeds to Discord channels. Monitors multiple feeds and posts updates automatically.
+
+### Subscription Bot
+**Why:** Manage Discord server subscriptions and member access control.
+
+### VPS Monitoring Bot
+**Why:** Monitor VPS health, resource usage, and bot status directly from Discord.
+
+## 🛠️ Tech Stack
+
+- **Node.js** (Discord.js v14) - Most bots
+- **Python** (discord.py) - Some bots
+- **PM2** - Process management on VPS
+- **MongoDB** - Data storage (where needed)
+- **GitHub Actions** - Automated deployment
+- **DigitalOcean VPS** - Production hosting
+
+## 📁 Structure
 
 ```
-discord/bots/
-├── README.md                    # This file
-├── .env.shared                  # Shared environment variables template
-├── scripts/                     # Automation scripts
-│   ├── start-all-bots.sh       # Start all bots
-│   ├── stop-all-bots.sh        # Stop all bots
-│   ├── check-bots-status.sh    # Check bot status
-│   ├── check_bots_status.py    # Python status checker
-│   ├── setup-all-bots.sh       # Setup all bots
-│   ├── setup-bots.sh           # Setup helper
-│   ├── generate-all-bots.js    # Bot generator
-│   └── complete-bots-generator.sh
-├── logs/                        # Bot log files
-│   ├── grammar-bot.log
-│   ├── hangman-bot.log
-│   └── spelling-bee-bot.log
-├── docs/                        # Documentation
-│   ├── QUICK_START.md
-│   ├── SETUP-GUIDE.md
-│   ├── CREDENTIALS-GUIDE.md
-│   └── ...
-├── grammar-bot/                  # Grammar Bot
-├── hangman-bot/                 # Hangman Bot
-├── spelling-bee-bot/            # Spelling Bee Bot
-└── discord-bots-python-backup-20251225/  # Python backup
+discord-bots/
+├── README.md              # This file
+├── ecosystem.config.js    # PM2 configuration
+├── .github/workflows/     # GitHub Actions deployment
+├── [bot-name]/            # Individual bot directories
+└── _archive/              # Archived/unused files
 ```
 
----
+## 🔧 Development
 
-## Scripts
+Built with **Cursor AI** assistance for rapid development and iteration. Each bot follows modular architecture with clear separation of concerns.
 
-All automation scripts are in the `scripts/` directory:
+## 📝 Notes
 
-| Script | Purpose |
-|--------|---------|
-| `start-all-bots.sh` | Start all bots in background |
-| `stop-all-bots.sh` | Stop all running bots |
-| `check-bots-status.sh` | Check status of all bots |
-| `setup-all-bots.sh` | Setup and install all bots |
-| `check_bots_status.py` | Python status checker (alternative) |
-
-**Usage:**
-
-```bash
-cd ~/Documents/DEVELOPMENT/discord/bots
-./scripts/start-all-bots.sh
-./scripts/check-bots-status.sh
-```
-
----
-
-## Documentation
-
-Comprehensive documentation is available in the `docs/` directory:
-
-- **Quick Start:** `docs/QUICK_START.md`
-- **Setup Guide:** `docs/SETUP-GUIDE.md`
-- **Credentials:** `docs/CREDENTIALS-GUIDE.md`
-- **Automation:** `docs/AUTOMATION-README.md`
-- **Migration:** `docs/MIGRATION_SETUP.md`
-
-Each bot also has its own documentation:
-
-- `grammar-bot/README.md`
-- `hangman-bot/README.md`
-- `spelling-bee-bot/README.md`
-
----
-
-## Environment Setup
-
-1. **Copy shared environment template:**
-
-   ```bash
-   cp .env.shared .env
-   ```
-
-2. **Configure each bot:**
-   - Each bot has its own `.env` file
-   - See `docs/CREDENTIALS-GUIDE.md` for details
-
-3. **Install dependencies:**
-
-   ```bash
-   ./scripts/setup-all-bots.sh
-   ```
-
----
-
-## Logs
-
-Bot logs are stored in the `logs/` directory:
-
-```bash
-# View grammar bot logs
-tail -f logs/grammar-bot.log
-
-# View all logs
-tail -f logs/*.log
-```
-
----
-
-## Development
-
-### Adding a New Bot
-
-1. Create bot directory: `mkdir new-bot`
-2. Initialize: `cd new-bot && npm init`
-3. Install dependencies: `npm install discord.js dotenv`
-4. Follow Discobase structure (see `docs/DISCOBASE-QUICK-START.md`)
-5. Add to `scripts/start-all-bots.sh`
-
-### Updating Commands
-
-For each bot:
-
-```bash
-cd grammar-bot
-npm run deploy
-```
-
-See `grammar-bot/SLASH-COMMANDS-GUIDE.md` for detailed instructions.
-
----
-
-## Backup
-
-Python version backup is stored in:
-
-- `discord-bots-python-backup-20251225/`
-
-This contains the original Python implementation for reference.
-
----
-
-## Troubleshooting
-
-### Bots Not Starting
-
-1. Check `.env` files have valid tokens
-2. Verify Node.js version: `node --version` (should be v18+)
-3. Check logs: `tail -f logs/*.log`
-4. Verify bot permissions in Discord Developer Portal
-
-### Commands Not Appearing
-
-1. Deploy commands: `cd bot-name && npm run deploy`
-2. Wait up to 1 hour for global commands
-3. Restart Discord app to refresh command cache
-4. See `grammar-bot/SLASH-COMMANDS-GUIDE.md` for details
-
-### Database Issues
-
-- Grammar Bot uses JSON storage by default (no MongoDB required)
-- MongoDB optional: Set `MONGODB_URI` in `.env` if desired
-- See `grammar-bot/MONGODB-FIX-COMPLETE.md` for MongoDB setup
-
----
-
-## Status
-
-All bots are operational and using:
-
-- **Framework:** Discord.js v14
-- **Structure:** Discobase-compatible
-- **Storage:** JSON files (MongoDB optional)
-- **Node.js:** v18+ recommended
-
----
-
-**Last Updated:** 2025-01-21  
-**Location:** `/Users/matthewthompson/Documents/DEVELOPMENT/discord/bots`
-
-## 🚀 Auto-Deployment (✅ WORKING!)
-
-This repository is configured with GitHub Actions for automatic deployment to DigitalOcean VPS.
-
-- **Status:** ✅ Fully operational
-- **Workflow:** `.github/workflows/deploy.yml`
-- **VPS IP:** `64.23.179.177`
-- **Setup Guides:** See `docs/` folder
-
-**How it works:**
-1. Make changes locally
-2. `git push` to `main` branch
-3. GitHub Actions automatically:
-   - Connects to VPS via SSH
-   - Pulls latest code
-   - Updates dependencies
-   - Restarts all bots with PM2
-
-**Quick Start:** See `docs/WHAT_NEXT.md` for daily workflow and common tasks.
+- All bots are production-ready and actively serving users
+- Bots auto-restart on crash via PM2
+- Logs are centralized in `/root/discord-bots/logs/`
+- Environment variables managed per-bot via `.env` files
