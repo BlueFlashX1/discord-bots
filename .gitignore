@@ -144,4 +144,5 @@ subscription-bot/
 _archive/
 
 # Documentation files (local only, not needed in remote)
-ENV_SETUP.mdverify-setup.sh
+ENV_SETUP.md
+verify-setup.sh
