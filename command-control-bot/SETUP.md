@@ -5,7 +5,7 @@
 ### 1. Install Dependencies
 
 ```bash
-cd ~/Documents/DEVELOPMENT/discord/bots/command-control-bot
+cd ~/path/to/discord/bots/command-control-bot
 npm install
 ```
 
@@ -37,14 +37,14 @@ Edit `config/commands.json` to add your commands. Example:
       "id": "ulquiorra-rojo",
       "label": "Ulquiorra Recreation",
       "command": "rojo serve",
-      "directory": "~/Documents/DEVELOPMENT/gaming/roblox-dev/ulquiorra-lanza-recreation",
+      "directory": "~/path/to/your/project",
       "description": "Start Rojo sync for Ulquiorra Lanza project"
     },
     {
       "id": "another-command",
       "label": "Another Command",
       "command": "npm start",
-      "directory": "~/Documents/DEVELOPMENT/some-project",
+      "directory": "~/path/to/your/project",
       "description": "Start another process"
     }
   ]
