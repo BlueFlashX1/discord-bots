@@ -1,9 +1,10 @@
 /**
  * Retry utility for Discord API calls with exponential backoff
  * Handles rate limits and transient errors
+ * 
+ * Note: This utility checks error properties dynamically to avoid requiring discord.js
+ * at the module level, allowing it to work from shared utils/ directory.
  */
-
-const { HTTPError, RateLimitError } = require('discord.js');
 
 /**
  * Retry a Discord API call with exponential backoff
@@ -32,8 +33,17 @@ async function retryDiscordAPI(fn, options = {}) {
     try {
       return await fn();
     } catch (error) {
+      // Check if error is a RateLimitError (check constructor name or error code)
+      const isRateLimitError = error.constructor?.name === 'RateLimitError' || 
+                               error.code === 'RATELIMIT' ||
+                               (error.status === 429 && error.retryAfter !== undefined);
+      
+      // Check if error is an HTTPError (check constructor name or has status property)
+      const isHTTPError = error.constructor?.name === 'HTTPError' || 
+                         (error.status !== undefined && error.status >= 400);
+
       // Handle rate limits
-      if (error instanceof RateLimitError || (error instanceof HTTPError && error.status === 429)) {
+      if (isRateLimitError || (isHTTPError && error.status === 429)) {
         const retryAfter = error.retryAfter ? error.retryAfter * 1000 : delay;
         
         if (attempt < maxRetries) {
@@ -52,7 +62,7 @@ async function retryDiscordAPI(fn, options = {}) {
       }
 
       // Handle server errors (5xx)
-      if (error instanceof HTTPError && error.status >= 500 && error.status < 600) {
+      if (isHTTPError && error.status >= 500 && error.status < 600) {
         if (attempt < maxRetries) {
           if (logger) {
             logger.warn(`${operationName} server error ${error.status} (attempt ${attempt + 1}/${maxRetries + 1}). Retrying in ${delay / 1000}s...`);
