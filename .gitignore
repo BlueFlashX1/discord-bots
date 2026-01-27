@@ -142,3 +142,6 @@ subscription-bot/
 
 # Archive directory (local reference only, not needed in remote)
 _archive/
+
+# Documentation files (local only, not needed in remote)
+ENV_SETUP.md
