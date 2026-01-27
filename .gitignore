@@ -4,7 +4,11 @@
 .env.local
 .env.production
 .env.shared
+.env.prod
+.env.dev
 *.env
+**/.env
+**/.env.*
 
 # Node modules
 node_modules/
