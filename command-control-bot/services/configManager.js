@@ -76,8 +76,21 @@ class ConfigManager {
     logger.debug('Loading config', { force, configPath: this.configPath });
 
     try {
-      const stats = fs.statSync(this.configPath);
-      logger.debug('Config file stats', { size: stats.size, mtime: stats.mtimeMs });
+      // Check if commands.json exists, fallback to commands.json.example
+      let actualConfigPath = this.configPath;
+      if (!fs.existsSync(this.configPath)) {
+        const examplePath = this.configPath.replace('commands.json', 'commands.json.example');
+        if (fs.existsSync(examplePath)) {
+          logger.warn('commands.json not found, using commands.json.example as fallback');
+          logger.warn('Please copy commands.json.example to commands.json and customize it');
+          actualConfigPath = examplePath;
+        } else {
+          throw new Error(`Config file not found: ${this.configPath}`);
+        }
+      }
+
+      const stats = fs.statSync(actualConfigPath);
+      logger.debug('Config file stats', { size: stats.size, mtime: stats.mtimeMs, path: actualConfigPath });
 
       // Return cached config if not modified and not forced
       if (!force && this.config && this.lastModified && stats.mtimeMs === this.lastModified) {
@@ -86,7 +99,7 @@ class ConfigManager {
       }
 
       logger.debug('Reading config file');
-      const rawData = fs.readFileSync(this.configPath, 'utf8');
+      const rawData = fs.readFileSync(actualConfigPath, 'utf8');
       let parsedConfig;
 
       try {
