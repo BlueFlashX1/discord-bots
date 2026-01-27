@@ -38,7 +38,8 @@ Each bot serves a specific purpose in my workflow, helping me stay organized and
 **Purpose:** Daily coding problems from LeetCode/Codewars. Automatically posts problems, validates solutions, and tracks progress with streaks.
 
 ### Command Control Bot
-**Purpose:** Remote server management. Execute shell commands via Discord buttons with real-time output streaming and process management.
+**Purpose:** Remote server management. Execute shell commands via Discord buttons with real-time output streaming and process management.  
+**Note:** Local-only bot - highly personalized for individual use cases.
 
 ### Reddit Filter Bot
 **Purpose:** Monitor Reddit subreddits and post filtered content based on keywords to Discord channels.

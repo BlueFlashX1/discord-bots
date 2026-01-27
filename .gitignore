@@ -135,6 +135,9 @@ scripts/
 # Local development only (not deployed remotely)
 subscription-bot/
 
+# Highly personalized bot (user-specific commands/config)
+command-control-bot/
+
 # IDE and editor configurations (local only)
 .cursor/
 .vscode/
