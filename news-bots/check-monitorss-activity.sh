@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Check MonitoRSS activity and help test article posting
-VPS_HOST="root@64.23.179.177"
+VPS_HOST="${VPS_HOST:-root@your-vps-ip}"
 SSH_KEY="$HOME/.ssh/id_rsa_deploy"
 API_URL="http://localhost:8000"
 

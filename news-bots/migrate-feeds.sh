@@ -4,7 +4,7 @@
 
 set -e  # Exit on error
 
-VPS_HOST="64.23.179.177"
+VPS_HOST="${VPS_HOST:-your-vps-ip}"
 VPS_USER="root"
 SSH_KEY="$HOME/.ssh/id_rsa_deploy"
 MONITORSS_DIR="$HOME/Documents/DEVELOPMENT/discord/bots/news-bots/MonitoRSS"
@@ -114,6 +114,6 @@ echo "  - Data imported to VPS MongoDB"
 echo "  - MonitoRSS services restarted"
 echo ""
 echo "Next steps:"
-echo "  1. Check MonitoRSS web UI: http://64.23.179.177:8000"
+echo "  1. Check MonitoRSS web UI: http://\${VPS_HOST:-your-vps-ip}:8000"
 echo "  2. Verify feeds are visible"
 echo "  3. Test feed refresh"
