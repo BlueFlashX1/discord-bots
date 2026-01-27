@@ -18,7 +18,9 @@ ssh root@your-vps-ip
 cd /root/discord-bots
 
 # For each bot, copy .env.example to .env and edit
-for bot in coding-practice-bot grammar-bot github-bot reminder-bot starboard-bot exercism-bot "todoist bot" reddit-filter-bot youtube-monitor-bot command-control-bot subscription-bot vps-monitoring-bot; do
+# Note: subscription-bot is local only (not deployed to VPS)
+# Note: spelling-bee-bot removed (no longer needed)
+for bot in coding-practice-bot grammar-bot github-bot reminder-bot starboard-bot exercism-bot "todoist bot" reddit-filter-bot youtube-monitor-bot command-control-bot vps-monitoring-bot; do
   if [ -d "$bot" ] && [ -f "$bot/.env.example" ]; then
     echo "Setting up $bot..."
     cp "$bot/.env.example" "$bot/.env"
@@ -329,7 +331,9 @@ CHECK_INTERVAL=*/15 * * * *
 ---
 
 ### 11. Subscription Bot
-**Location:** `/root/discord-bots/subscription-bot/.env`
+**⚠️ LOCAL DEVELOPMENT ONLY - NOT DEPLOYED TO VPS**
+
+**Location:** `subscription-bot/.env` (local only)
 
 ```bash
 # Discord Bot Configuration
@@ -340,6 +344,8 @@ CLIENT_ID=your_discord_client_id_here
 **Required:**
 - `DISCORD_TOKEN` - Discord bot token
 - `CLIENT_ID` - Discord application client ID (required for command deployment)
+
+**Note:** This bot is not deployed to the VPS and is for local development only.
 
 ---
 
@@ -367,38 +373,7 @@ Set permissions: `chmod 600 ~/.ssh/id_rsa_deploy`
 
 ---
 
-### 13. Spelling Bee Bot
-**Location:** `/root/discord-bots/spelling-bee-bot/.env`
-
-```bash
-# Discord Bot Configuration
-DISCORD_TOKEN=your_discord_bot_token_here
-CLIENT_ID=your_bot_client_id_here
-GUILD_ID=your_test_guild_id_here
-
-# OpenAI Configuration
-OPENAI_API_KEY=your_openai_api_key_here
-
-# Database Configuration (optional - uses JSON if not set)
-MONGODB_URI=mongodb://localhost:27017/spelling-bee-bot
-
-# Environment
-NODE_ENV=development
-```
-
-**Required:**
-- `DISCORD_TOKEN` - Discord bot token
-- `OPENAI_API_KEY` - OpenAI API key
-
-**Optional:**
-- `CLIENT_ID` - For command registration
-- `GUILD_ID` - Server ID
-- `MONGODB_URI` - Uses JSON storage if not set
-- `NODE_ENV` - Set to `production` for production
-
----
-
-### 14. MonitoRSS (News Bots)
+### 13. MonitoRSS (News Bots)
 **Location:** `/root/discord-bots/news-bots/MonitoRSS/.env`
 
 **Note:** MonitoRSS uses a single `.env` file for all services. All services share the same bot token but use different variable names.
@@ -545,10 +520,10 @@ pm2 env grammar-bot
 ├── reddit-filter-bot/.env
 ├── youtube-monitor-bot/.env
 ├── command-control-bot/.env
-├── subscription-bot/.env
 ├── vps-monitoring-bot/.env
-├── spelling-bee-bot/.env
 └── news-bots/MonitoRSS/.env  # Single file for all MonitoRSS services
+# Note: subscription-bot is local only (not on VPS)
+# Note: spelling-bee-bot removed (no longer needed)
 ```
 
 ---
