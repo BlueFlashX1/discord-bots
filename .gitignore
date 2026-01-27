@@ -138,6 +138,10 @@ subscription-bot/
 # Highly personalized bot (user-specific commands/config)
 command-control-bot/
 
+# VPS-specific scripts (contain real IPs and paths, VPS has its own copies)
+news-bots/check-monitorss-activity.sh
+news-bots/migrate-feeds.sh
+
 # IDE and editor configurations (local only)
 .cursor/
 .vscode/
