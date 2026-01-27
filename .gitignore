@@ -131,3 +131,6 @@ scripts/
 *.sh
 !**/deploy-commands.js
 !**/deploy-commands.py
+
+# Local development only (not deployed remotely)
+subscription-bot/
