@@ -134,3 +134,11 @@ scripts/
 
 # Local development only (not deployed remotely)
 subscription-bot/
+
+# IDE and editor configurations (local only)
+.cursor/
+.vscode/
+.idea/
+
+# Archive directory (local reference only, not needed in remote)
+_archive/
