@@ -80,9 +80,17 @@ discord-bots/
 
 Built with **Cursor AI** assistance for rapid development and iteration. Each bot follows modular architecture with clear separation of concerns.
 
+## 🔐 Environment Variables
+
+**All tokens and secrets are stored in `.env` files on the VPS (never committed to git).**
+
+Each bot loads environment variables from its own `.env` file via PM2's `env_file` option. See `ENV_SETUP.md` for detailed setup instructions.
+
+**After security incident:** Discord reset exposed tokens. Get new tokens from Discord Developer Portal and update `.env` files on VPS.
+
 ## 📝 Notes
 
 - All bots are production-ready and actively serving users
 - Bots auto-restart on crash via PM2
 - Logs are centralized in `/root/discord-bots/logs/`
-- Environment variables managed per-bot via `.env` files
+- Environment variables managed per-bot via `.env` files (never tracked in git)

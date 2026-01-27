@@ -12,6 +12,7 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '500M',
+      env_file: '/root/discord-bots/coding-practice-bot/.env',
       env: {
         NODE_ENV: 'production',
       },
@@ -29,6 +30,7 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '500M',
+      env_file: '/root/discord-bots/command-control-bot/.env',
       env: {
         NODE_ENV: 'production',
       },
@@ -48,6 +50,7 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '500M',
+      env_file: '/root/discord-bots/grammar-bot/.env',
       env: {
         NODE_ENV: 'production',
       },
@@ -65,6 +68,7 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '300M',
+      env_file: '/root/discord-bots/todoist bot/.env',
       env: {
         NODE_ENV: 'production',
       },
@@ -82,6 +86,7 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '300M',
+      env_file: '/root/discord-bots/reddit-filter-bot/.env',
       env: {
         NODE_ENV: 'production',
       },
@@ -99,6 +104,7 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '300M',
+      env_file: '/root/discord-bots/youtube-monitor-bot/.env',
       env: {
         NODE_ENV: 'production',
       },
@@ -116,6 +122,7 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '300M',
+      env_file: '/root/discord-bots/github-bot/.env',
       env: {
         NODE_ENV: 'production',
       },
@@ -133,6 +140,7 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '300M',
+      env_file: '/root/discord-bots/reminder-bot/.env',
       env: {
         NODE_ENV: 'production',
       },
@@ -150,6 +158,7 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '300M',
+      env_file: '/root/discord-bots/starboard-bot/.env',
       env: {
         NODE_ENV: 'production',
       },
@@ -167,6 +176,7 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '300M',
+      env_file: '/root/discord-bots/exercism-bot/.env',
       env: {
         NODE_ENV: 'production',
       },
