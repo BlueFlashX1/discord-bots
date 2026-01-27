@@ -37,7 +37,10 @@ jobs:
               if [ -d "$bot" ] && [ -f "$bot/package.json" ]; then
                 echo "Updating dependencies for $bot..."
                 cd "$bot"
-                npm install --production
+                npm install --production || {
+                  echo "ERROR: npm install failed for $bot"
+                  exit 1
+                }
                 cd /root/discord-bots
               fi
             done
