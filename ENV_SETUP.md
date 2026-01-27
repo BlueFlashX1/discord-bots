@@ -497,10 +497,10 @@ pm2 env grammar-bot
 ├── reddit-filter-bot/.env
 ├── youtube-monitor-bot/.env
 ├── command-control-bot/.env
-├── vps-monitoring-bot/.env
 └── news-bots/MonitoRSS/.env  # Single file for all MonitoRSS services
 # Note: subscription-bot is local only (not on VPS)
 # Note: spelling-bee-bot removed (no longer needed)
+# Note: vps-monitoring-bot removed - not needed (2026-01-27)
 ```
 
 ---
