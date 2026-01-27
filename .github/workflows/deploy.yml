@@ -31,7 +31,9 @@ jobs:
 
             # Update dependencies for each bot
             # hangman-bot removed - archived on 2026-01-23
-            for bot in coding-practice-bot command-control-bot spelling-bee-bot grammar-bot "todoist bot" reddit-filter-bot youtube-monitor-bot; do
+            # spelling-bee-bot removed - no longer needed
+            # subscription-bot not deployed remotely (local only)
+            for bot in coding-practice-bot command-control-bot grammar-bot "todoist bot" reddit-filter-bot youtube-monitor-bot; do
               if [ -d "$bot" ] && [ -f "$bot/package.json" ]; then
                 echo "Updating dependencies for $bot..."
                 cd "$bot"

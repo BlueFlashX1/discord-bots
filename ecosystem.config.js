@@ -40,7 +40,8 @@ module.exports = {
       merge_logs: true,
     },
     // hangman-bot removed - archived on 2026-01-23 (friends not interested anymore)
-    // spelling-bee-bot removed - directory exists but no index.js file found
+    // spelling-bee-bot removed - no longer needed (2026-01-27)
+    // subscription-bot not deployed remotely (local development only)
     {
       name: 'grammar-bot',
       script: 'index.js',
