@@ -316,6 +316,24 @@ class ExercismCLI:
 
         return sorted(joined_tracks)
 
+    async def get_exercises_for_track(self, track: str) -> List[str]:
+        """List exercise slugs for a track from workspace (downloaded exercises only)."""
+        workspace = await self.get_workspace()
+        if not workspace or not os.path.isdir(workspace):
+            return []
+        track_path = os.path.join(workspace, track.strip().lower())
+        if not os.path.isdir(track_path):
+            return []
+        try:
+            return sorted(
+                item
+                for item in os.listdir(track_path)
+                if os.path.isdir(os.path.join(track_path, item))
+            )
+        except Exception as e:
+            logger.debug(f"Error listing exercises for {track}: {e}")
+            return []
+
     async def get_track_difficulties(
         self, track: str, use_cache: bool = True
     ) -> Dict[str, int]:

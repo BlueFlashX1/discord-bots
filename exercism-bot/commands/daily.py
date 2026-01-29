@@ -163,6 +163,137 @@ class DailyCommand(commands.Cog):
         )
         await interaction.followup.send(embed=embed)
 
+    @app_commands.command(
+        name="daily-test",
+        description="[TEST] Run full daily flow (unlock check → download → embed) to verify unlocked exercise is sent correctly.",
+    )
+    @app_commands.describe(
+        track="Programming track (default: python)",
+        difficulty="Difficulty level (optional)",
+    )
+    @app_commands.autocomplete(track=track_autocomplete)
+    @app_commands.choices(
+        difficulty=[
+            app_commands.Choice(name="Beginner", value="beginner"),
+            app_commands.Choice(name="Intermediate", value="intermediate"),
+            app_commands.Choice(name="Advanced", value="advanced"),
+        ]
+    )
+    async def daily_test(
+        self,
+        interaction: discord.Interaction,
+        track: str = "python",
+        difficulty: Optional[str] = None,
+    ):
+        """[TEST] Full daily flow: pick unlocked exercise, download, build rich embed, send."""
+        await interaction.response.defer()
+
+        track = track.lower().strip()
+        difficulty = (difficulty or "beginner").lower()
+
+        exercises = EXERCISE_DIFFICULTY.get(
+            difficulty, EXERCISE_DIFFICULTY["beginner"]
+        )
+        track_exercises = COMMON_EXERCISES.get(track, COMMON_EXERCISES["python"])
+        available = [e for e in exercises if e in track_exercises]
+        unlocked_exercises = []
+        for ex in available:
+            if await self.cli.is_exercise_unlocked(ex, track):
+                unlocked_exercises.append(ex)
+
+        if not unlocked_exercises:
+            no_unlocked = discord.Embed(
+                title="No Unlocked Exercises [TEST]",
+                description=(
+                    f"No unlocked exercises for **{track.title()}** ({difficulty}).\n\n"
+                    "Complete more on [exercism.io](https://exercism.org) to unlock more."
+                ),
+                color=discord.Color.orange(),
+            )
+            no_unlocked.set_footer(
+                text="TEST – verify unlock check; no exercise was sent."
+            )
+            await interaction.followup.send(embed=no_unlocked)
+            return
+
+        exercise = random.choice(unlocked_exercises)
+
+        cli_installed, cli_message = await self.cli.check_cli_installed()
+        if not cli_installed:
+            embed = create_daily_problem_embed(
+                exercise=exercise,
+                track=track,
+                description=f"Difficulty: {difficulty.title()}",
+                cli_installed=False,
+                cli_message=cli_message,
+            )
+            embed.set_footer(
+                text="TEST – CLI not installed; unlock check passed, download skipped."
+            )
+            await interaction.followup.send(embed=embed)
+            return
+
+        try:
+            success, download_msg, exercise_path = await self.cli.download_exercise(
+                exercise, track
+            )
+            if success and exercise_path:
+                info_success, exercise_info = await self.cli.get_exercise_info(
+                    exercise, track
+                )
+                if info_success:
+                    description = exercise_info.get(
+                        "description", f"Difficulty: {difficulty.title()}"
+                    )
+                    embed = create_daily_problem_embed(
+                        exercise=exercise,
+                        track=track,
+                        description=description,
+                        exercise_path=exercise_path,
+                        readme=exercise_info.get("readme"),
+                        starter_code=exercise_info.get("starter_code"),
+                        starter_file=exercise_info.get("starter_file"),
+                        test_file=exercise_info.get("test_file"),
+                        cli_installed=True,
+                    )
+                else:
+                    embed = create_daily_problem_embed(
+                        exercise=exercise,
+                        track=track,
+                        description=f"Difficulty: {difficulty.title()}\n\nExercise downloaded; could not read exercise files.",
+                        exercise_path=exercise_path,
+                        cli_installed=True,
+                    )
+            else:
+                embed = create_daily_problem_embed(
+                    exercise=exercise,
+                    track=track,
+                    description=(
+                        f"Difficulty: {difficulty.title()}\n\n"
+                        f"Could not download automatically. Use `/fetch {exercise} {track}` to download manually.\n\n"
+                        f"Error: {download_msg}"
+                    ),
+                    cli_installed=True,
+                )
+        except Exception as e:
+            embed = create_daily_problem_embed(
+                exercise=exercise,
+                track=track,
+                description=f"Difficulty: {difficulty.title()}\n\nUse `/fetch {exercise} {track}` to download!",
+                cli_installed=True,
+            )
+            embed.set_footer(
+                text=f"TEST – exception during fetch: {str(e)[:80]}"
+            )
+            await interaction.followup.send(embed=embed)
+            return
+
+        if "TEST" not in (embed.footer.text or ""):
+            embed.set_footer(
+                text="TEST – full flow OK: unlocked, downloaded, embed sent. Verify exercise is correct."
+            )
+        await interaction.followup.send(embed=embed)
+
 
 async def setup(bot: commands.Bot):
     """Add cog to bot."""
