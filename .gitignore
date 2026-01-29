@@ -135,6 +135,9 @@ scripts/
 # Local development only (not deployed remotely)
 subscription-bot/
 
+# Run on VPS but do not push to GitHub (sync/deploy subscription-tracker manually)
+subscription-tracker/
+
 # Highly personalized bot (user-specific commands/config)
 command-control-bot/
 

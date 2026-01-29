@@ -21,27 +21,28 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       merge_logs: true,
     },
+    // command-control-bot not deployed to VPS (script not present on server)
+    // hangman-bot removed - archived on 2026-01-23 (friends not interested anymore)
+    // spelling-bee-bot removed - no longer needed (2026-01-27)
+    // subscription-bot not deployed remotely (local development only)
     {
-      name: 'command-control-bot',
+      name: 'subscription-tracker',
       script: 'index.js',
-      cwd: '/root/discord-bots/command-control-bot',
+      cwd: '/root/discord-bots/subscription-tracker',
       instances: 1,
       exec_mode: 'fork',
       autorestart: true,
       watch: false,
-      max_memory_restart: '500M',
-      env_file: '/root/discord-bots/command-control-bot/.env',
+      max_memory_restart: '300M',
+      env_file: '/root/discord-bots/subscription-tracker/.env',
       env: {
         NODE_ENV: 'production',
       },
-      error_file: '/root/discord-bots/logs/command-control-bot-error.log',
-      out_file: '/root/discord-bots/logs/command-control-bot-out.log',
+      error_file: '/root/discord-bots/logs/subscription-tracker-error.log',
+      out_file: '/root/discord-bots/logs/subscription-tracker-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       merge_logs: true,
     },
-    // hangman-bot removed - archived on 2026-01-23 (friends not interested anymore)
-    // spelling-bee-bot removed - no longer needed (2026-01-27)
-    // subscription-bot not deployed remotely (local development only)
     {
       name: 'grammar-bot',
       script: 'index.js',
@@ -319,9 +320,14 @@ module.exports = {
       max_memory_restart: '256M',
       env: {
         NODE_ENV: 'production',
-        // All sensitive values loaded from .env file via DOTENV_CONFIG_PATH
-        // DO NOT hardcode tokens, secrets, database URIs, or API keys here
-        // Point NestJS ConfigModule to parent .env file
+        BACKEND_API_DEFAULT_MAX_FEEDS: '999999',
+        BACKEND_API_DEFAULT_REFRESH_RATE_MINUTES: '60',
+        BACKEND_API_FEED_USER_AGENT: 'MonitoRSS',
+        BACKEND_API_USER_FEEDS_API_HOST: 'http://localhost:5000',
+        BACKEND_API_FEED_REQUESTS_API_HOST: 'http://localhost:5000',
+        BACKEND_API_USER_FEEDS_API_KEY: 'user-feeds-api-key',
+        BACKEND_API_FEED_REQUESTS_API_KEY: 'feed-requests-api-key',
+        BACKEND_API_RABBITMQ_BROKER_URL: 'amqp://guest:guest@localhost:5672/',
         DOTENV_CONFIG_PATH: '/root/discord-bots/news-bots/MonitoRSS/.env',
       },
       error_file: '/root/discord-bots/logs/monitorss-schedule-emitter-error.log',
