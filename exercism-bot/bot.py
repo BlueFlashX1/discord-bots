@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 # Bot configuration
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 CLIENT_ID = os.getenv("CLIENT_ID")
+GUILD_ID = os.getenv("GUILD_ID", "").strip()
 
 if not DISCORD_TOKEN:
     logger.error("DISCORD_TOKEN not found in environment variables")
@@ -56,7 +57,6 @@ class ExercismBot(commands.Bot):
 
     async def setup_hook(self):
         """Called when the bot is starting up."""
-        # Load all command cogs
         cogs_dir = Path("commands")
         for file in cogs_dir.glob("*.py"):
             if file.stem != "__init__":
@@ -66,13 +66,47 @@ class ExercismBot(commands.Bot):
                 except Exception as e:
                     logger.error(f"Failed to load cog {file.stem}: {e}")
 
-        # Sync commands globally (no guild-specific syncing needed)
-        await self.tree.sync()
-        logger.info("Synced global commands")
+        guild_ok = (
+            GUILD_ID
+            and GUILD_ID != "your_guild_id"
+            and GUILD_ID.isdigit()
+        )
+        if guild_ok:
+            try:
+                guild = discord.Object(id=int(GUILD_ID))
+                self.tree.copy_global_to(guild=guild)
+                synced_g = await self.tree.sync(guild=guild)
+                names = [c.name for c in synced_g]
+                logger.info(
+                    "Synced guild commands (instant) for guild %s: %d commands %s",
+                    GUILD_ID, len(synced_g), names,
+                )
+            except (ValueError, TypeError) as e:
+                logger.warning("Invalid GUILD_ID, skipping guild sync: %s", e)
+                guild_ok = False
+            except Exception as e:
+                logger.exception("Guild sync failed: %s", e)
+                guild_ok = False
+
+        try:
+            synced = await self.tree.sync()
+            names = [c.name for c in synced]
+            logger.info(
+                "Synced global commands%s: %d commands %s",
+                " (up to ~1h to propagate)" if guild_ok else "",
+                len(synced), names,
+            )
+        except Exception as e:
+            logger.exception("Global sync failed: %s", e)
+            raise
 
     async def on_ready(self):
         """Called when the bot is ready."""
         logger.info(f"Bot connected: {self.user} ({len(self.guilds)} guild(s))")
+
+        if os.getenv("DEPLOY_COMMANDS_ONLY"):
+            await self.close()
+            return
 
         # Initialize services
         cli = ExercismCLI()

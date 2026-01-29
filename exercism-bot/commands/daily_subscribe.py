@@ -163,6 +163,66 @@ class DailySubscribeCommand(commands.Cog):
 
         await interaction.followup.send(embed=embed)
 
+    @app_commands.command(
+        name="daily_tracks",
+        description="Show the list of tracks you're subscribed to for daily problems",
+    )
+    async def daily_tracks(self, interaction: discord.Interaction):
+        """Show subscribed tracks for the invoking user."""
+        await interaction.response.defer()
+
+        scheduler = getattr(self.bot, "daily_scheduler", None)
+        if not scheduler:
+            await interaction.followup.send(
+                embed=create_error_embed(
+                    "Daily scheduler not initialized. Contact bot administrator."
+                )
+            )
+            return
+
+        config = scheduler.subscribers.get(interaction.user.id)
+        if not config:
+            await interaction.followup.send(
+                embed=create_error_embed(
+                    "You're not subscribed to daily problems.\n\n"
+                    "Use `/daily_subscribe` to subscribe."
+                )
+            )
+            return
+
+        difficulty = config.get("difficulty", "beginner")
+        channel_id = config.get("channel_id")
+        all_tracks = config.get("all_tracks", False)
+
+        if channel_id:
+            ch = self.bot.get_channel(channel_id)
+            location = f"#{ch.name}" if ch and hasattr(ch, "name") else "channel"
+        else:
+            location = "your DMs"
+
+        if all_tracks:
+            joined = await self.cli.get_joined_tracks()
+            tracks_list = ", ".join([t.title() for t in joined]) if joined else "—"
+            msg = (
+                "**Subscribed tracks (all joined, rotating daily):**\n"
+                f"{tracks_list}\n\n"
+                f"**Difficulty:** {difficulty.title()}\n"
+                f"**Delivery:** {location}\n"
+                f"**Time:** 9:00 AM daily"
+            )
+        else:
+            tracks = config.get("tracks") or []
+            tracks_list = ", ".join([t.title() for t in tracks]) if tracks else "—"
+            msg = (
+                f"**Subscribed track(s):** {tracks_list}\n\n"
+                f"**Difficulty:** {difficulty.title()}\n"
+                f"**Delivery:** {location}\n"
+                f"**Time:** 9:00 AM daily"
+            )
+
+        embed = create_success_embed(msg)
+        await interaction.followup.send(embed=embed)
+
 
 async def setup(bot: commands.Bot):
     """Add cog to bot."""

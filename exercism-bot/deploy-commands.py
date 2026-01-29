@@ -1,44 +1,32 @@
-"""Deploy slash commands to Discord."""
+"""Deploy slash commands to Discord.
+
+Uses the real bot (loads cogs), syncs, then exits. Run after adding or changing
+slash commands so they register with Discord.
+
+Usage:
+  python3 deploy-commands.py
+
+Env:
+  DISCORD_TOKEN, CLIENT_ID  Required.
+  GUILD_ID                  Optional. If set (your dev server ID), also syncs to
+                            that guild for instant updates (global can take ~1h).
+"""
 
 import asyncio
-import logging
 import os
 import sys
 
-import discord
-from discord import app_commands
+os.environ["DEPLOY_COMMANDS_ONLY"] = "1"
+
 from dotenv import load_dotenv
 
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-CLIENT_ID = os.getenv("CLIENT_ID")
-
-if not DISCORD_TOKEN or not CLIENT_ID:
-    logger.error("DISCORD_TOKEN and CLIENT_ID required")
+if not os.getenv("DISCORD_TOKEN") or not os.getenv("CLIENT_ID"):
+    print("DISCORD_TOKEN and CLIENT_ID required in .env")
     sys.exit(1)
 
-
-async def deploy():
-    """Deploy commands to Discord."""
-    bot = discord.Client(intents=discord.Intents.default())
-    tree = app_commands.CommandTree(bot)
-
-    @bot.event
-    async def on_ready():
-        logger.info(f"Logged in as {bot.user}")
-
-        # Sync commands globally (no guild-specific syncing needed)
-        await tree.sync()
-        logger.info("Synced global commands")
-
-        await bot.close()
-
-    await bot.start(DISCORD_TOKEN)
-
+from bot import DISCORD_TOKEN, main
 
 if __name__ == "__main__":
-    asyncio.run(deploy())
+    asyncio.run(main())
