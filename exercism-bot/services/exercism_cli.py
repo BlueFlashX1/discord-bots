@@ -115,10 +115,14 @@ class ExercismCLI:
         if returncode == 0:
             return True
 
-        # Check error message for unlock-related errors
-        error_msg = (stderr or stdout or "").lower()
+        # Check error message for unlock-related errors (use both streams)
+        error_msg = ((stderr or "") + "\n" + (stdout or "")).strip().lower()
         unlock_errors = [
             "not unlocked",
+            "you have not unlocked",
+            "have not unlocked",
+            "haven't unlocked",
+            "you haven't unlocked",
             "not available",
             "locked",
             "unlock",
@@ -131,10 +135,12 @@ class ExercismCLI:
             logger.debug(f"Exercise {exercise} ({track}) is locked: {error_msg[:100]}")
             return False
 
-        # Other errors (network, CLI issues) - assume unlocked to avoid false negatives
-        # The download will fail later if truly locked
-        logger.warning(f"Unclear unlock status for {exercise} ({track}): {error_msg[:100]}")
-        return True  # Assume unlocked if error is unclear
+        # Unclear errors (timeout, network, etc.): assume locked so we don't suggest
+        # exercises that later fail with "not unlocked"
+        logger.warning(
+            f"Unclear unlock status for {exercise} ({track}), treating as locked: {error_msg[:100]}"
+        )
+        return False
 
     async def download_exercise(
         self, exercise: str, track: str

@@ -158,3 +158,7 @@ PUBLIC_REPO_ASSESSMENT.md
 
 # User-specific configuration (not tracked remotely)
 command-control-bot/config/commands.json
+test-vps-functionality.sh
+diagnose-offline-bots.sh
+fix-offline-bots.sh
+restore-command-control-bot.sh
