@@ -165,7 +165,7 @@ class DailyCommand(commands.Cog):
 
     @app_commands.command(
         name="daily-test",
-        description="[TEST] Run full daily flow (unlock check → download → embed) to verify unlocked exercise is sent correctly.",
+        description="[TEST] Run daily flow: unlock check, download, embed. Verifies exercise delivery.",
     )
     @app_commands.describe(
         track="Programming track (default: python)",
