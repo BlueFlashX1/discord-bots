@@ -23,6 +23,25 @@ def _option_value(interaction: discord.Interaction, name: str) -> Optional[str]:
         return str(v) if v is not None else None
     return None
 
+
+def _attachment_filename(interaction: discord.Interaction) -> Optional[str]:
+    """Get filename of the first attached file from autocomplete interaction, if present."""
+    data = getattr(interaction, "data", None) or {}
+    opts = data.get("options") or []
+    for opt in opts:
+        if opt.get("name") != "file":
+            continue
+        aid = opt.get("value")
+        if aid is None:
+            continue
+        resolved = data.get("resolved") or {}
+        atts = resolved.get("attachments") or {}
+        att = atts.get(str(aid))
+        if att and isinstance(att, dict) and att.get("filename"):
+            return att["filename"]
+        break
+    return None
+
 EXTENSION_TO_TRACK = {
     "py": "python",
     "js": "javascript",
@@ -95,18 +114,28 @@ class SubmitCommand(commands.Cog):
     async def exercise_autocomplete(
         self, interaction: discord.Interaction, current: str
     ) -> List[app_commands.Choice[str]]:
-        """Autocomplete exercise from workspace (downloaded exercises for selected track)."""
+        """Autocomplete exercise from workspace + inferred from attached filename."""
         track = _option_value(interaction, "track")
         if not track:
             return []
-        exercises = await self.cli.get_exercises_for_track(track)
+        exercises = list(await self.cli.get_exercises_for_track(track))
+        inferred_ex: Optional[str] = None
+        filename = _attachment_filename(interaction)
+        if filename:
+            ex, tr = _infer_from_filename(filename)
+            if ex and tr and tr.lower() == track.lower():
+                inferred_ex = ex
+                if ex not in exercises:
+                    exercises.insert(0, ex)
         if not exercises:
             return []
         cur = (current or "").strip().lower()
         matches = [e for e in exercises if cur in e.lower()]
+        def sort_key(x: str) -> tuple:
+            return (0 if (inferred_ex and x == inferred_ex) else 1, x)
         return [
             app_commands.Choice(name=e, value=e)
-            for e in sorted(matches)[:25]
+            for e in sorted(matches, key=sort_key)[:25]
         ]
 
     @app_commands.command(

@@ -115,8 +115,10 @@ class ExercismCLI:
         if returncode == 0:
             return True
 
-        # Check error message for unlock-related errors (use both streams)
         error_msg = ((stderr or "") + "\n" + (stdout or "")).strip().lower()
+        if "already exists" in error_msg:
+            return True
+
         unlock_errors = [
             "not unlocked",
             "you have not unlocked",
@@ -130,13 +132,10 @@ class ExercismCLI:
             "prerequisite",
         ]
 
-        # If error contains unlock-related keywords, exercise is locked
         if any(keyword in error_msg for keyword in unlock_errors):
             logger.debug(f"Exercise {exercise} ({track}) is locked: {error_msg[:100]}")
             return False
 
-        # Unclear errors (timeout, network, etc.): assume locked so we don't suggest
-        # exercises that later fail with "not unlocked"
         logger.warning(
             f"Unclear unlock status for {exercise} ({track}), treating as locked: {error_msg[:100]}"
         )
