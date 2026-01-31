@@ -145,23 +145,16 @@ class DailyScheduler:
                 logger.debug(
                     f"Found {len(exercises)} exercises for {track} ({difficulty})"
                 )
-                unlocked_exercises = []
-                for exercise in exercises:
-                    if await self.cli.is_exercise_unlocked(exercise, track):
-                        unlocked_exercises.append(exercise)
-                    else:
-                        logger.debug(f"Exercise {exercise} ({track}) is locked, skipping")
-
                 in_workspace = await self.cli.get_exercises_for_track(track)
-                unlocked_exercises = [
-                    e for e in unlocked_exercises if e not in in_workspace
-                ]
+                candidates = [e for e in exercises if e not in in_workspace]
+                random.shuffle(candidates)
 
-                if unlocked_exercises:
-                    logger.debug(
-                        f"Found {len(unlocked_exercises)} unlocked exercises for {track} ({difficulty})"
-                    )
-                    return random.choice(unlocked_exercises)
+                for exercise in candidates[: min(10, len(candidates))]:
+                    if await self.cli.is_exercise_unlocked(exercise, track):
+                        logger.debug(
+                            f"Found unlocked exercise {exercise} for {track} ({difficulty})"
+                        )
+                        return exercise
                 logger.warning(
                     f"No unlocked exercises found for {track} ({difficulty}), trying fallback"
                 )
@@ -175,16 +168,13 @@ class DailyScheduler:
         if not available:
             available = list(track_exercises)
 
-        unlocked = []
-        for exercise in available:
-            if await self.cli.is_exercise_unlocked(exercise, track):
-                unlocked.append(exercise)
-
         in_workspace = await self.cli.get_exercises_for_track(track)
-        unlocked = [e for e in unlocked if e not in in_workspace]
+        candidates = [e for e in available if e not in in_workspace]
+        random.shuffle(candidates)
 
-        if unlocked:
-            return random.choice(unlocked)
+        for exercise in candidates[: min(10, len(candidates))]:
+            if await self.cli.is_exercise_unlocked(exercise, track):
+                return exercise
         logger.warning(
             f"No unlocked exercises for {track} ({difficulty}); skipping daily problem"
         )

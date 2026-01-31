@@ -133,17 +133,18 @@ class DailyCommand(commands.Cog):
                     COMMON_EXERCISES.get(track, COMMON_EXERCISES["python"])
                 )
 
-        unlocked_exercises = []
-        for ex in exercises:
-            if await self.cli.is_exercise_unlocked(ex, track):
-                unlocked_exercises.append(ex)
         in_workspace = await self.cli.get_exercises_for_track(track)
-        unlocked_exercises = [
-            e for e in unlocked_exercises if e not in in_workspace
-        ]
+        candidates = [e for e in exercises if e not in in_workspace]
+        random.shuffle(candidates)
 
-        if unlocked_exercises:
-            exercise = random.choice(unlocked_exercises)
+        exercise = None
+        max_checks = min(10, len(candidates))
+        for ex in candidates[:max_checks]:
+            if await self.cli.is_exercise_unlocked(ex, track):
+                exercise = ex
+                break
+
+        if exercise:
             if difficulty_key:
                 actual_difficulty = difficulty_key.title()
             elif difficulties_map and exercise in difficulties_map:
@@ -222,16 +223,17 @@ class DailyCommand(commands.Cog):
             )
             exercises = [e for e in fallback if e in track_exercises]
 
-        unlocked_exercises = []
-        for ex in exercises:
-            if await self.cli.is_exercise_unlocked(ex, track):
-                unlocked_exercises.append(ex)
         in_workspace = await self.cli.get_exercises_for_track(track)
-        unlocked_exercises = [
-            e for e in unlocked_exercises if e not in in_workspace
-        ]
+        candidates = [e for e in exercises if e not in in_workspace]
+        random.shuffle(candidates)
 
-        if not unlocked_exercises:
+        exercise = None
+        for ex in candidates[: min(10, len(candidates))]:
+            if await self.cli.is_exercise_unlocked(ex, track):
+                exercise = ex
+                break
+
+        if not exercise:
             no_unlocked = discord.Embed(
                 title="No Unlocked Exercises [TEST]",
                 description=(
@@ -245,8 +247,6 @@ class DailyCommand(commands.Cog):
             )
             await interaction.followup.send(embed=no_unlocked)
             return
-
-        exercise = random.choice(unlocked_exercises)
 
         cli_installed, cli_message = await self.cli.check_cli_installed()
         if not cli_installed:
