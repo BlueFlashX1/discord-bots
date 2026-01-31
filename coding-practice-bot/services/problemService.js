@@ -14,12 +14,23 @@ class ProblemService {
     try {
       if (fs.existsSync(this.problemsPath)) {
         const data = fs.readFileSync(this.problemsPath, 'utf8');
-        return JSON.parse(data);
+        const parsed = JSON.parse(data);
+        return this.dedupeProblemsById(parsed);
       }
     } catch (error) {
       console.error('Error loading problems:', error);
     }
     return [];
+  }
+
+  dedupeProblemsById(problems) {
+    const seen = new Set();
+    return (problems || []).filter((p) => {
+      const id = p.id != null ? String(p.id) : p.slug || '';
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
   }
 
   saveProblems() {
@@ -34,9 +45,15 @@ class ProblemService {
     }
   }
 
+  /**
+   * Fetch a LeetCode problem by difficulty.
+   * Uses LeetCode's public GraphQL API at leetcode.com/graphql.
+   * - Random selection: picks a random skip offset (0-49) and fetches 1 question
+   * - Filters by difficulty (EASY, MEDIUM, HARD)
+   * - Returns metadata only (no problem description; user visits URL for full content)
+   */
   async fetchLeetCodeProblem(difficulty = 'easy') {
     try {
-      // LeetCode GraphQL API
       const query = `
         query problemsetQuestionList($categorySlug: String, $limit: Int, $skip: Int, $filters: QuestionListFilterInput) {
           problemsetQuestionList: questionList(
@@ -113,16 +130,14 @@ class ProblemService {
   }
 
   /**
-   * Fetch a Codewars problem by kyu rank
-   * According to Codewars API v1 docs: https://dev.codewars.com
-   * - API is public (no auth required)
-   * - Endpoint: /api/v1/code-challenges/{challenge} (by ID or slug)
-   * - No random endpoint exists, so we use a curated list of popular kata slugs
+   * Fetch a Codewars problem by kyu rank.
+   * API: https://dev.codewars.com/#get-code-challenge
+   * - Endpoint: GET /api/v1/code-challenges/{challenge} (ID or slug)
+   * - No list/random endpoint; uses curated kata slugs, then fetches full CodeChallenge
+   * - Response: id, name, slug, url, description, tags, rank, totalAttempts, totalCompleted, totalStars
    */
   async fetchCodewarsProblem(kyu = 8) {
     try {
-      // Popular Codewars kata slugs organized by kyu rank
-      // These are well-known kata that are commonly used for practice
       const kataSlugsByKyu = {
         8: [
           'multiply',
@@ -135,6 +150,26 @@ class ProblemService {
           'remove-string-spaces',
           'grasshopper-summation',
           'counting-sheep',
+          'reversed-strings',
+          'square-n-sum',
+          'return-negative',
+          'basic-math-operations',
+          'reversed-words',
+          'digitize',
+          'boolean-to-string',
+          'abbreviate-a-two-word-name',
+          'keep-hydrated',
+          'century-from-year',
+          'convert-number-to-reversed-array-of-digits',
+          'is-n-divisible-by-x-and-y',
+          'quarter-of-the-year',
+          'beginner-lost-without-a-map',
+          'convert-a-boolean-to-a-string',
+          'transportation-on-vacation',
+          'thinkful-number-dribble',
+          'will-you-make-it',
+          'double-char',
+          'cockroach',
         ],
         7: [
           'vowel-count',
@@ -147,6 +182,16 @@ class ProblemService {
           'square-every-digit',
           'mumbling',
           'get-the-middle-character',
+          'jaden-casing-strings',
+          'isograms',
+          'exes-and-ohs',
+          'credit-card-mask',
+          'two-to-one',
+          'remove-the-minimum',
+          'number-of-people-in-the-bus',
+          'friend-or-foe',
+          'list-filtering',
+          'sort-array-by-string-length',
         ],
         6: [
           'who-likes-it',
@@ -159,6 +204,16 @@ class ProblemService {
           'array-diff',
           'find-the-odd-int',
           'stop-gninnips-my-sdrow',
+          'multiples-of-3-or-5',
+          'counting-duplicates',
+          'create-phone-number',
+          'build-tower',
+          'split-strings',
+          'which-are-in',
+          'unique-in-order',
+          'tribonacci-sequence',
+          'valid-braces',
+          'detect-pangram',
         ],
         5: [
           'simple-pig-latin',
@@ -171,6 +226,16 @@ class ProblemService {
           'rgb-to-hex-conversion',
           'where-my-anagrams-at',
           'directions-reduction',
+          'string-incrementer',
+          'first-non-repeating-character',
+          'maximum-subarray-sum',
+          'product-of-consecutive-fib-numbers',
+          'calculating-with-functions',
+          'int32-to-ipv4',
+          'common-denominators',
+          'fibonacci-streaming',
+          'gap-in-primes',
+          'merged-string-checker',
         ],
         4: [
           'strip-comments',
@@ -183,6 +248,52 @@ class ProblemService {
           'next-bigger-number-with-the-same-digits',
           'snail',
           'sum-of-intervals',
+          'range-extraction',
+          'magnet-particules-in-boxes',
+          'matrix-determinant',
+          'so-many-permutations',
+          'permutation-average',
+          'path-finder-number-1-can-you-reach-the-exit',
+          'sort-binary-tree-by-levels',
+          'matrix-addition',
+          'escape-the-mines',
+          'binary-multiple-of-3',
+        ],
+        3: [
+          'last-digit-of-a-huge-number',
+          'breadcrumb-generator',
+          'screen-locking-patterns',
+          'rail-fence-cipher',
+          'battleship-field-validator',
+          'alphabetic-anagrams',
+          'last-digit-of-a-large-number',
+          'prime-streaming-pg-13',
+          'how-many-numbers-iii',
+          'multinomial-coefficients',
+        ],
+        2: [
+          'evaluate-mathematical-expression',
+          'text-align-justify',
+          'one-line-task-square-every-digit',
+          'sudoku-solver',
+          'insane-coloured-triangles',
+          'infix-to-postfix-converter',
+          'simplifying-multilinear-polynomials',
+          'algebraic-lists',
+          'replicate-new',
+          'functional-lists',
+        ],
+        1: [
+          'functional-curry',
+          'functional-sql',
+          'catching-car-mileage-numbers',
+          'coding-with-squared-strings',
+          'irreducible-sum-of-rationals',
+          'faberge-easter-eggs-crush-test',
+          'regular-expression-for-binary-numbers-divisible-by-n',
+          'object-oriented-piracy',
+          'can-you-get-the-loop',
+          'assembler-interpreter-part-ii',
         ],
       };
 
@@ -267,10 +378,13 @@ class ProblemService {
     }
   }
 
-  async getRandomProblem(difficulty = null, source = null) {
-    // Try to get from cache first
+  async getRandomProblem(difficulty = null, source = null, excludeIds = []) {
+    const excludeSet = new Set((excludeIds || []).map((id) => String(id)));
+
     if (this.problems.length > 0) {
       let filtered = this.problems;
+
+      filtered = filtered.filter((p) => p.source !== 'codewars');
 
       if (difficulty) {
         filtered = filtered.filter((p) => p.difficulty === difficulty.toLowerCase());
@@ -280,38 +394,28 @@ class ProblemService {
         filtered = filtered.filter((p) => p.source === source.toLowerCase());
       }
 
+      if (excludeSet.size > 0) {
+        filtered = filtered.filter((p) => !excludeSet.has(String(p.id)));
+      }
+
       if (filtered.length > 0) {
         const random = filtered[Math.floor(Math.random() * filtered.length)];
         return random;
       }
     }
 
-    // Fetch new problem
     let problem = null;
 
     if (source === 'leetcode' || !source) {
       problem = await this.fetchLeetCodeProblem(difficulty || 'easy');
-    } else if (source === 'codewars') {
-      // Map difficulty to Codewars kyu rank
-      // For better variety, we use a range of kyu levels per difficulty
-      let kyu;
-      if (difficulty === 'hard') {
-        // Hard: 1-4 kyu (pick random from this range)
-        kyu = Math.floor(Math.random() * 4) + 1; // 1-4 kyu
-      } else if (difficulty === 'medium') {
-        // Medium: 5-6 kyu
-        kyu = Math.floor(Math.random() * 2) + 5; // 5-6 kyu
-      } else {
-        // Easy: 7-8 kyu
-        kyu = Math.floor(Math.random() * 2) + 7; // 7-8 kyu
-      }
-      problem = await this.fetchCodewarsProblem(kyu);
     }
 
     if (problem) {
-      // Cache it
-      this.problems.push(problem);
-      this.saveProblems();
+      const existingIds = new Set(this.problems.map((p) => String(p.id)));
+      if (!existingIds.has(String(problem.id))) {
+        this.problems.push(problem);
+        this.saveProblems();
+      }
     }
 
     return problem;
