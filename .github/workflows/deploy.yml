@@ -12,23 +12,33 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4
 
       - name: Deploy to VPS
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@d134a26a1f62a1eb6f470f543cb0a988f888573d  # v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
-            cd /root/discord-bots
+            set -e
+            # Log stored on VPS only at /var/log/discord-bots/ - never in repo
+            DEPLOY_LOG="/var/log/discord-bots/deploy.log"
+            mkdir -p "$(dirname "$DEPLOY_LOG")"
+            log() { echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] $*" | tee -a "$DEPLOY_LOG"; }
+            trap 'log "FAILED: Deploy exited with code $?"' ERR
+            log "===== Deploy started ====="
 
-            # Force reset to match remote (discard any local changes on VPS)
+            cd /root/discord-bots
+            log "Step: git fetch/reset"
             git fetch origin main
             git reset --hard origin/main
             git clean -fd
+            COMMIT=$(git rev-parse --short HEAD)
+            log "At commit: $COMMIT"
 
+            log "Step: npm install"
             # Update dependencies for each bot
             # hangman-bot removed - archived on 2026-01-23
             # spelling-bee-bot removed - no longer needed
@@ -38,25 +48,24 @@ jobs:
                 echo "Updating dependencies for $bot..."
                 cd "$bot"
                 npm install --production || {
-                  echo "ERROR: npm install failed for $bot"
+                  log "FAILED: npm install failed for $bot"
                   exit 1
                 }
                 cd /root/discord-bots
               fi
             done
 
-            # Clear Python bytecode cache for Python bots
-            echo "Clearing Python bytecode cache..."
+            log "Step: clear Python cache"
             find /root/discord-bots -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
             find /root/discord-bots -name "*.pyc" -delete 2>/dev/null || true
 
-            # Stop all bots, then start fresh from ecosystem config
-            echo "Restarting all bots from ecosystem config..."
+            log "Step: pm2 restart"
             pm2 delete all 2>/dev/null || true
-            pm2 start ecosystem.config.js
-
-            # Save PM2 configuration
+            pm2 start ecosystem.config.js || {
+              log "FAILED: pm2 start failed"
+              exit 1
+            }
             pm2 save
 
-            # Show status
+            log "SUCCESS: Deploy completed for $COMMIT"
             pm2 list

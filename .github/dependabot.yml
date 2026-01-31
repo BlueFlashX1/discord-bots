@@ -1,0 +1,37 @@
+# Dependabot: auto PRs for dependency updates
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates:
+  # Node.js bots
+  - package-ecosystem: "npm"
+    directories:
+      - "/coding-practice-bot"
+      - "/grammar-bot"
+      - "/reddit-filter-bot"
+      - "/youtube-monitor-bot"
+      - "/todoist bot"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # Python bots
+  - package-ecosystem: "pip"
+    directories:
+      - "/exercism-bot"
+      - "/github-bot"
+      - "/reminder-bot"
+      - "/starboard-bot"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    groups:
+      pip-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
