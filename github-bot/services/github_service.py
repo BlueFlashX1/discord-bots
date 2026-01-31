@@ -3,6 +3,7 @@
 import logging
 import os
 from typing import Dict, List, Optional
+from urllib.parse import urlparse
 
 import aiohttp
 from utils.retry import retry_with_backoff
@@ -179,32 +180,43 @@ class GitHubService:
         - http://github.com/owner/repo
         - github.com/owner/repo
         - www.github.com/owner/repo
+
+        Uses URL parsing to prevent hostname bypass (e.g. evil.github.com).
         """
         repo_input = repo_input.strip()
 
-        # Handle GitHub URLs
-        if "github.com" in repo_input:
-            # Remove protocol if present
-            repo_input = repo_input.replace("https://", "").replace("http://", "")
-            # Remove www. if present
-            repo_input = repo_input.replace("www.", "")
-            # Remove github.com/ prefix
-            if repo_input.startswith("github.com/"):
-                repo_input = repo_input[11:]  # Remove "github.com/"
-            elif repo_input.startswith("github.com"):
-                repo_input = repo_input[10:]  # Remove "github.com"
-            # Remove trailing slash
-            repo_input = repo_input.rstrip("/")
-            # Remove .git suffix if present
-            if repo_input.endswith(".git"):
-                repo_input = repo_input[:-4]
+        if "/" in repo_input and (
+            repo_input.startswith(("http://", "https://"))
+            or repo_input.startswith(("github.com", "www.github.com"))
+        ):
+            if not repo_input.startswith(("http://", "https://")):
+                repo_input = "https://" + repo_input
+            try:
+                parsed = urlparse(repo_input)
+                host = (parsed.hostname or "").lower()
+                if host not in ("github.com", "www.github.com"):
+                    return None, None
+                path = parsed.path.strip("/")
+                if path.endswith(".git"):
+                    path = path[:-4]
+                parts = path.split("/")
+                if len(parts) >= 2:
+                    owner = parts[0].strip()
+                    repo = parts[1].strip()
+                    if "?" in repo:
+                        repo = repo.split("?")[0]
+                    if "#" in repo:
+                        repo = repo.split("#")[0]
+                    if owner and repo:
+                        return owner, repo
+            except (ValueError, AttributeError):
+                pass
+            return None, None
 
-        # Parse owner/repo
         parts = repo_input.split("/")
         if len(parts) == 2:
             owner = parts[0].strip()
             repo = parts[1].strip()
-            # Remove any query parameters or fragments from repo name
             if "?" in repo:
                 repo = repo.split("?")[0]
             if "#" in repo:

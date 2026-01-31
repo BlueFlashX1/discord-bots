@@ -1,5 +1,29 @@
 const { SlashCommandBuilder, EmbedBuilder, ChannelType } = require('discord.js');
 
+const ALLOWED_YOUTUBE_HOSTS = new Set([
+  'youtube.com',
+  'www.youtube.com',
+  'm.youtube.com',
+  'youtu.be',
+]);
+
+function isYouTubeUrlOrIdentifier(input) {
+  const trimmed = (input || '').trim();
+  if (trimmed.startsWith('@') || /^UC[\w-]+$/.test(trimmed)) {
+    return true;
+  }
+  try {
+    const url = new URL(
+      trimmed.startsWith('http://') || trimmed.startsWith('https://')
+        ? trimmed
+        : `https://${trimmed}`
+    );
+    return ALLOWED_YOUTUBE_HOSTS.has(url.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('add')
@@ -37,13 +61,7 @@ module.exports = {
       let channelData;
 
       // Try different methods to get channel
-      // Enhanced with better URL parsing from Übersicht widget
-      if (
-        channelInput.includes('youtube.com') ||
-        channelInput.includes('youtu.be') ||
-        channelInput.startsWith('@') ||
-        channelInput.match(/^UC[\w-]+$/)
-      ) {
+      if (isYouTubeUrlOrIdentifier(channelInput)) {
         // URL or direct identifier provided
         // getChannelByUrl handles: @handle, /c/, /user/, /channel/, direct IDs
         const data = await youtubeService.getChannelByUrl(channelInput);
