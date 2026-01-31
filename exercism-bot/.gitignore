@@ -11,6 +11,9 @@ __pycache__/
 data/*.json
 !data/.gitkeep
 
+# Exercism CLI workspace (local exercises, not in repo)
+workspace/
+
 # IDE
 .vscode/
 .idea/

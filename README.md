@@ -95,6 +95,22 @@ discord-bots/
 └── _archive/              # Archived/unused files
 ```
 
+## VPS config vs repo (keeping secrets off GitHub)
+
+**Repo = code only.** No tokens, API keys, IPs, or credentials are committed.
+
+| On GitHub | On VPS only |
+|-----------|-------------|
+| Code, `ecosystem.config.example.js`, `.env.example` | `ecosystem.config.js`, `.env` files (tokens, keys) |
+| Placeholders like `YOUR_VPS_IP`, `your_deploy_key` | Real IP, SSH key path, MonitoRSS redirect URLs |
+
+**How it works:**
+- `.env` and `*.env` are gitignored — never in the repo.
+- Deploy (`git pull` / GitHub Actions) updates code only; it does not touch `.env` or other untracked files.
+- One-time setup on VPS: create `.env` per bot from `.env.example`, fill in real values.
+- Copy `ecosystem.config.example.js` to `ecosystem.config.js` (deploy does this if missing); customize paths if needed.
+- Scripts with real IPs (e.g. `migrate-feeds.sh`) live on the VPS or locally; only `.example` versions are tracked.
+
 ## Syncing MonitoRSS / ecosystem to VPS
 
 **macOS is the source of truth.** The VPS runs whatever is on disk at `/root/discord-bots/`. If you change config on macOS and do not sync, the VPS keeps using the old config. That leads to errors and confusion.
