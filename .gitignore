@@ -158,6 +158,7 @@ _archive/
 
 # Documentation files (local only, not needed in remote)
 ENV_SETUP.md
+SECURITY.md
 verify-setup.sh
 verify-vps-bots.sh
 PUBLIC_REPO_ASSESSMENT.md
