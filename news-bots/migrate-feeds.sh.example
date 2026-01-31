@@ -6,7 +6,7 @@ set -e  # Exit on error
 
 VPS_HOST="${VPS_HOST:-your-vps-ip}"
 VPS_USER="root"
-SSH_KEY="$HOME/.ssh/id_rsa_deploy"
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/your_deploy_key}"
 MONITORSS_DIR="${MONITORSS_DIR:-$HOME/path/to/discord/bots/news-bots/MonitoRSS}"
 BACKUP_DIR="$MONITORSS_DIR/mongodb-backup-$(date +%Y%m%d-%H%M%S)"
 DB_NAME="rss"
