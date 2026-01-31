@@ -375,6 +375,8 @@ class ExercismCLI:
                         )
 
                         for exercise in practice_exercises:
+                            if exercise.get("status") == "deprecated":
+                                continue
                             slug = exercise.get("slug")
                             difficulty = exercise.get("difficulty")
                             if slug and difficulty:
@@ -388,6 +390,8 @@ class ExercismCLI:
                         # Concept exercises don't have difficulty, but we can include them
                         # as "beginner" level since they're introductory
                         for exercise in concept_exercises:
+                            if exercise.get("status") == "deprecated":
+                                continue
                             slug = exercise.get("slug")
                             if slug:
                                 # Concept exercises are typically beginner-level (teaching concepts)
