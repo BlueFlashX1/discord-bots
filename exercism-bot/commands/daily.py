@@ -104,67 +104,72 @@ class DailyCommand(commands.Cog):
         await interaction.response.defer()
 
         track = track.lower().strip()
+        difficulty_key = (difficulty or "").lower() or None
 
-        if difficulty:
-            exercises = EXERCISE_DIFFICULTY.get(
-                difficulty.lower(), EXERCISE_DIFFICULTY["beginner"]
-            )
-            track_exercises = COMMON_EXERCISES.get(track, COMMON_EXERCISES["python"])
-            available = [e for e in exercises if e in track_exercises]
-            unlocked_exercises = []
-            for ex in available:
-                if await self.cli.is_exercise_unlocked(ex, track):
-                    unlocked_exercises.append(ex)
-            in_workspace = await self.cli.get_exercises_for_track(track)
-            unlocked_exercises = [
-                e for e in unlocked_exercises if e not in in_workspace
-            ]
-            if unlocked_exercises:
-                exercise = random.choice(unlocked_exercises)
-                actual_difficulty = difficulty.title()
-            else:
-                no_unlocked = discord.Embed(
-                    title="No New Exercises",
-                    description=(
-                        f"No unlocked exercises for **{track.title()}** ({difficulty}), "
-                        "or all suggested ones are already in your workspace (solved or in progress).\n\n"
-                        "Try a different track or difficulty, or complete more on [exercism.org](https://exercism.org) to unlock more."
-                    ),
-                    color=discord.Color.orange(),
+        exercises = []
+        difficulties_map = {}
+        try:
+            if difficulty_key:
+                exercises = await self.cli.get_exercises_by_difficulty(
+                    track, difficulty_key
                 )
-                no_unlocked.set_footer(text="Good luck!")
-                await interaction.followup.send(embed=no_unlocked)
-                return
-        else:
-            exercises = COMMON_EXERCISES.get(track, COMMON_EXERCISES["python"])
-            unlocked_exercises = []
-            for ex in exercises:
-                if await self.cli.is_exercise_unlocked(ex, track):
-                    unlocked_exercises.append(ex)
-            in_workspace = await self.cli.get_exercises_for_track(track)
-            unlocked_exercises = [
-                e for e in unlocked_exercises if e not in in_workspace
-            ]
-            if unlocked_exercises:
-                exercise = random.choice(unlocked_exercises)
+            else:
+                difficulties_map = await self.cli.get_track_difficulties(track)
+                exercises = list(difficulties_map.keys()) if difficulties_map else []
+        except Exception:
+            pass
+
+        if not exercises:
+            if difficulty_key:
+                fallback = EXERCISE_DIFFICULTY.get(
+                    difficulty_key, EXERCISE_DIFFICULTY["beginner"]
+                )
+                track_exercises = COMMON_EXERCISES.get(
+                    track, COMMON_EXERCISES["python"]
+                )
+                exercises = [e for e in fallback if e in track_exercises]
+            else:
+                exercises = list(
+                    COMMON_EXERCISES.get(track, COMMON_EXERCISES["python"])
+                )
+
+        unlocked_exercises = []
+        for ex in exercises:
+            if await self.cli.is_exercise_unlocked(ex, track):
+                unlocked_exercises.append(ex)
+        in_workspace = await self.cli.get_exercises_for_track(track)
+        unlocked_exercises = [
+            e for e in unlocked_exercises if e not in in_workspace
+        ]
+
+        if unlocked_exercises:
+            exercise = random.choice(unlocked_exercises)
+            if difficulty_key:
+                actual_difficulty = difficulty_key.title()
+            elif difficulties_map and exercise in difficulties_map:
+                actual_difficulty = self.cli.map_difficulty_to_category(
+                    difficulties_map[exercise]
+                ).title()
+            else:
                 actual_difficulty = "Beginner"
                 for diff, ex_list in EXERCISE_DIFFICULTY.items():
                     if exercise in ex_list:
                         actual_difficulty = diff.title()
                         break
-            else:
-                no_unlocked = discord.Embed(
-                    title="No New Exercises",
-                    description=(
-                        f"No unlocked exercises for **{track.title()}**, "
-                        "or all suggested ones are already in your workspace (solved or in progress).\n\n"
-                        "Try a different track or complete more on [exercism.org](https://exercism.org) to unlock more."
-                    ),
-                    color=discord.Color.orange(),
-                )
-                no_unlocked.set_footer(text="Good luck!")
-                await interaction.followup.send(embed=no_unlocked)
-                return
+        else:
+            diff_str = f" ({difficulty_key})" if difficulty_key else ""
+            no_unlocked = discord.Embed(
+                title="No New Exercises",
+                description=(
+                    f"No unlocked exercises for **{track.title()}**{diff_str}, "
+                    "or all suggested ones are already in your workspace (solved or in progress).\n\n"
+                    "Try a different track or difficulty, or complete more on [exercism.org](https://exercism.org) to unlock more."
+                ),
+                color=discord.Color.orange(),
+            )
+            no_unlocked.set_footer(text="Good luck!")
+            await interaction.followup.send(embed=no_unlocked)
+            return
 
         embed = create_daily_problem_embed(
             exercise=exercise,
@@ -201,13 +206,24 @@ class DailyCommand(commands.Cog):
         track = track.lower().strip()
         difficulty = (difficulty or "beginner").lower()
 
-        exercises = EXERCISE_DIFFICULTY.get(
-            difficulty, EXERCISE_DIFFICULTY["beginner"]
-        )
-        track_exercises = COMMON_EXERCISES.get(track, COMMON_EXERCISES["python"])
-        available = [e for e in exercises if e in track_exercises]
+        exercises = []
+        try:
+            exercises = await self.cli.get_exercises_by_difficulty(
+                track, difficulty
+            )
+        except Exception:
+            pass
+        if not exercises:
+            fallback = EXERCISE_DIFFICULTY.get(
+                difficulty, EXERCISE_DIFFICULTY["beginner"]
+            )
+            track_exercises = COMMON_EXERCISES.get(
+                track, COMMON_EXERCISES["python"]
+            )
+            exercises = [e for e in fallback if e in track_exercises]
+
         unlocked_exercises = []
-        for ex in available:
+        for ex in exercises:
             if await self.cli.is_exercise_unlocked(ex, track):
                 unlocked_exercises.append(ex)
         in_workspace = await self.cli.get_exercises_for_track(track)

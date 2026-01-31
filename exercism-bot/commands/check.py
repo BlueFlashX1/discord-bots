@@ -5,7 +5,6 @@ from discord import app_commands
 from discord.ext import commands
 
 from services.exercism_cli import ExercismCLI
-from utils.embeds import create_success_embed, create_error_embed
 
 
 class CheckCommand(commands.Cog):
@@ -34,7 +33,7 @@ class CheckCommand(commands.Cog):
                 color=discord.Color.green(),
             )
             
-            embed.add_field(name="Version", value=message, inline=True)
+            embed.add_field(name="Version", value=message or "Unknown", inline=True)
             
             if has_user:
                 embed.add_field(
@@ -60,9 +59,10 @@ class CheckCommand(commands.Cog):
                 )
             
             if workspace:
+                workspace_str: str = workspace
                 embed.add_field(
                     name="📁 Workspace",
-                    value=f"`{workspace}`",
+                    value=f"`{workspace_str}`",
                     inline=False,
                 )
             
