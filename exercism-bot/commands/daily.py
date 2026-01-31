@@ -115,19 +115,24 @@ class DailyCommand(commands.Cog):
             for ex in available:
                 if await self.cli.is_exercise_unlocked(ex, track):
                     unlocked_exercises.append(ex)
+            in_workspace = await self.cli.get_exercises_for_track(track)
+            unlocked_exercises = [
+                e for e in unlocked_exercises if e not in in_workspace
+            ]
             if unlocked_exercises:
                 exercise = random.choice(unlocked_exercises)
                 actual_difficulty = difficulty.title()
             else:
                 no_unlocked = discord.Embed(
-                    title="No Unlocked Exercises",
+                    title="No New Exercises",
                     description=(
-                        f"No unlocked exercises for **{track.title()}** ({difficulty}).\n\n"
-                        "Complete more on [exercism.io](https://exercism.org) to unlock more."
+                        f"No unlocked exercises for **{track.title()}** ({difficulty}), "
+                        "or all suggested ones are already in your workspace (solved or in progress).\n\n"
+                        "Try a different track or difficulty, or complete more on [exercism.org](https://exercism.org) to unlock more."
                     ),
                     color=discord.Color.orange(),
                 )
-                no_unlocked.set_footer(text="Good luck! 🚀")
+                no_unlocked.set_footer(text="Good luck!")
                 await interaction.followup.send(embed=no_unlocked)
                 return
         else:
@@ -136,6 +141,10 @@ class DailyCommand(commands.Cog):
             for ex in exercises:
                 if await self.cli.is_exercise_unlocked(ex, track):
                     unlocked_exercises.append(ex)
+            in_workspace = await self.cli.get_exercises_for_track(track)
+            unlocked_exercises = [
+                e for e in unlocked_exercises if e not in in_workspace
+            ]
             if unlocked_exercises:
                 exercise = random.choice(unlocked_exercises)
                 actual_difficulty = "Beginner"
@@ -145,14 +154,15 @@ class DailyCommand(commands.Cog):
                         break
             else:
                 no_unlocked = discord.Embed(
-                    title="No Unlocked Exercises",
+                    title="No New Exercises",
                     description=(
-                        f"No unlocked exercises for **{track.title()}**.\n\n"
-                        "Complete more on [exercism.io](https://exercism.org) to unlock more."
+                        f"No unlocked exercises for **{track.title()}**, "
+                        "or all suggested ones are already in your workspace (solved or in progress).\n\n"
+                        "Try a different track or complete more on [exercism.org](https://exercism.org) to unlock more."
                     ),
                     color=discord.Color.orange(),
                 )
-                no_unlocked.set_footer(text="Good luck! 🚀")
+                no_unlocked.set_footer(text="Good luck!")
                 await interaction.followup.send(embed=no_unlocked)
                 return
 
@@ -200,6 +210,10 @@ class DailyCommand(commands.Cog):
         for ex in available:
             if await self.cli.is_exercise_unlocked(ex, track):
                 unlocked_exercises.append(ex)
+        in_workspace = await self.cli.get_exercises_for_track(track)
+        unlocked_exercises = [
+            e for e in unlocked_exercises if e not in in_workspace
+        ]
 
         if not unlocked_exercises:
             no_unlocked = discord.Embed(
