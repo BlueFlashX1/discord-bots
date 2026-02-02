@@ -169,3 +169,5 @@ test-vps-functionality.sh
 diagnose-offline-bots.sh
 fix-offline-bots.sh
 restore-command-control-bot.sh
+.grepai/
+moltbot/

@@ -1,0 +1,30 @@
+{
+  "channels": {
+    "DISCORD_CHANNEL_ID_NEWS": {
+      "category": "News",
+      "enabled": true,
+      "description": "News and RSS feeds"
+    },
+    "DISCORD_CHANNEL_ID_GITHUB": {
+      "category": "Development",
+      "enabled": true,
+      "description": "GitHub notifications and commits"
+    },
+    "DISCORD_CHANNEL_ID_SYSTEM_LOGS": {
+      "category": "System",
+      "enabled": true,
+      "description": "System logs and alerts"
+    },
+    "DISCORD_CHANNEL_ID_WORK": {
+      "category": "Work",
+      "enabled": true,
+      "description": "Work-related updates"
+    }
+  },
+  "ingestion": {
+    "batchSize": 100,
+    "rateLimitDelay": 1000,
+    "maxAgeDays": 30,
+    "watermarkFile": "watermarks.json"
+  }
+}
