@@ -1,0 +1,1 @@
+"""Exercism Bot tests."""
