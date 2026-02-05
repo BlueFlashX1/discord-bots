@@ -6,70 +6,9 @@ from discord.ext import commands
 import random
 
 from services.exercism_cli import ExercismCLI
+from services.exercism_api import get_exercism_api
 from utils.embeds import create_exercise_embed, create_error_embed
 from utils.data_manager import DataManager
-
-# Exercise difficulty mapping
-EXERCISE_DIFFICULTY = {
-    "beginner": [
-        "hello-world",
-        "two-fer",
-        "leap",
-        "bob",
-        "raindrops",
-        "isogram",
-        "pangram",
-        "acronym",
-    ],
-    "intermediate": [
-        "hamming",
-        "word-count",
-        "anagram",
-        "scrabble-score",
-        "roman-numerals",
-        "phone-number",
-        "diamond",
-        "beer-song",
-    ],
-    "advanced": [
-        "sieve",
-        "nth-prime",
-        "largest-series-product",
-        "allergies",
-        "crypto-square",
-        "robot-name",
-        "queen-attack",
-        "binary-search-tree",
-    ],
-}
-
-TRACK_EXERCISES = {
-    "python": (
-        EXERCISE_DIFFICULTY["beginner"]
-        + EXERCISE_DIFFICULTY["intermediate"]
-        + EXERCISE_DIFFICULTY["advanced"]
-    ),
-    "javascript": (
-        EXERCISE_DIFFICULTY["beginner"]
-        + EXERCISE_DIFFICULTY["intermediate"]
-        + EXERCISE_DIFFICULTY["advanced"]
-    ),
-    "rust": (
-        EXERCISE_DIFFICULTY["beginner"]
-        + EXERCISE_DIFFICULTY["intermediate"]
-        + EXERCISE_DIFFICULTY["advanced"]
-    ),
-    "go": (
-        EXERCISE_DIFFICULTY["beginner"]
-        + EXERCISE_DIFFICULTY["intermediate"]
-        + EXERCISE_DIFFICULTY["advanced"]
-    ),
-    "java": (
-        EXERCISE_DIFFICULTY["beginner"]
-        + EXERCISE_DIFFICULTY["intermediate"]
-        + EXERCISE_DIFFICULTY["advanced"]
-    ),
-}
 
 
 class RecommendCommand(commands.Cog):
@@ -78,52 +17,58 @@ class RecommendCommand(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.cli = ExercismCLI()
+        self.api = get_exercism_api()  # Use API for reliable recommendations
         self.data = DataManager()
 
-    def _get_recommendations(
-        self, user_id: int, track: str, difficulty: str = None
+    async def _get_recommendations(
+        self, user_id: int, track: str, difficulty: str | None = None
     ) -> list:
-        """Get exercise recommendations based on user progress and difficulty."""
-        # Get user's completed exercises
+        """Get exercise recommendations based on user progress and difficulty.
+        
+        Uses API for real unlocked exercises instead of hardcoded lists.
+        """
+        # Get user's completed exercises (from local tracking)
         exercises = self.data.get_user_exercises(user_id)
         completed = {
-            (e.get("exercise"), e.get("track"))
+            e.get("exercise")
             for e in exercises
             if e.get("track") == track
         }
+        
+        # Get exercises already in workspace
+        in_workspace = set(await self.cli.get_exercises_for_track(track))
 
-        # Get available exercises for track
-        available = TRACK_EXERCISES.get(track, TRACK_EXERCISES["python"])
+        # Get unlocked exercises from API
+        available = []
+        try:
+            if difficulty:
+                available = await self.api.get_unlocked_exercises_by_difficulty(
+                    track, difficulty.lower()
+                )
+            else:
+                unlocked = await self.api.get_unlocked_exercises(track)
+                available = list(unlocked)
+        except Exception:
+            pass  # API failed, available stays empty
 
-        # Filter out completed
+        # Filter out completed and in-progress exercises
         recommendations = [
             ex
             for ex in available
-            if (ex, track) not in completed
+            if ex not in completed and ex not in in_workspace
         ]
 
-        # Filter by difficulty if specified
-        if difficulty:
-            difficulty_exercises = EXERCISE_DIFFICULTY.get(
-                difficulty.lower(), EXERCISE_DIFFICULTY["beginner"]
-            )
-            recommendations = [
-                ex for ex in recommendations if ex in difficulty_exercises
-            ]
-
-        # If no recommendations, suggest next difficulty level
+        # If no recommendations at this difficulty, try other difficulties
         if not recommendations and difficulty:
-            if difficulty == "beginner":
-                next_level = "intermediate"
-            elif difficulty == "intermediate":
-                next_level = "advanced"
-            else:
-                next_level = "beginner"  # Cycle back
-
-            next_exercises = EXERCISE_DIFFICULTY.get(next_level, [])
-            recommendations = [
-                ex for ex in available if ex in next_exercises and (ex, track) not in completed
-            ]
+            try:
+                # Get all unlocked exercises
+                all_unlocked = await self.api.get_unlocked_exercises(track)
+                recommendations = [
+                    ex for ex in all_unlocked
+                    if ex not in completed and ex not in in_workspace
+                ][:5]
+            except Exception:
+                pass
 
         return recommendations[:5]  # Return top 5
 
@@ -165,7 +110,7 @@ class RecommendCommand(commands.Cog):
         self,
         interaction: discord.Interaction,
         track: str = "python",
-        difficulty: str = None,
+        difficulty: str | None = None,
     ):
         """Get exercise recommendations."""
         await interaction.response.defer()
@@ -173,8 +118,8 @@ class RecommendCommand(commands.Cog):
         track = track.lower().strip()
         user_id = interaction.user.id
 
-        # Get recommendations
-        recommendations = self._get_recommendations(user_id, track, difficulty)
+        # Get recommendations (now async with API)
+        recommendations = await self._get_recommendations(user_id, track, difficulty)
 
         if not recommendations:
             embed = create_error_embed(
@@ -188,12 +133,8 @@ class RecommendCommand(commands.Cog):
         # Pick random recommendation
         exercise = random.choice(recommendations)
 
-        # Determine actual difficulty
-        actual_difficulty = "beginner"
-        for diff, exercises in EXERCISE_DIFFICULTY.items():
-            if exercise in exercises:
-                actual_difficulty = diff
-                break
+        # Use requested difficulty or "Mixed" if not specified
+        actual_difficulty = difficulty.title() if difficulty else "Mixed"
 
         embed = create_exercise_embed(
             exercise=exercise,

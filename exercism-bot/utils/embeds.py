@@ -62,20 +62,33 @@ def create_progress_embed(
     return embed
 
 
-def create_tracks_embed(tracks: list) -> discord.Embed:
-    """Create an embed listing available tracks."""
+def create_tracks_embed(
+    tracks: list, user_tracks: Optional[list] = None
+) -> discord.Embed:
+    """Create an embed listing available tracks with user's joined tracks highlighted."""
     embed = discord.Embed(
         title="🎯 Available Tracks",
         description="Choose a track to start practicing:",
         color=discord.Color.purple(),
     )
 
-    # Split tracks into chunks for fields
-    tracks_str = ", ".join([f"`{t}`" for t in tracks[:20]])
-    embed.add_field(name="Tracks", value=tracks_str, inline=False)
+    # Show user's joined tracks first if available
+    if user_tracks:
+        joined_str = ", ".join([f"**{t}**" for t in sorted(user_tracks)])
+        embed.add_field(
+            name="✅ Your Joined Tracks",
+            value=joined_str or "None",
+            inline=False,
+        )
 
-    if len(tracks) > 20:
-        embed.set_footer(text=f"Showing 20 of {len(tracks)} tracks")
+    # Show all available tracks
+    tracks_str = ", ".join([f"`{t}`" for t in tracks[:25]])
+    embed.add_field(name="All Tracks", value=tracks_str, inline=False)
+
+    if len(tracks) > 25:
+        embed.set_footer(text=f"Showing 25 of {len(tracks)} tracks")
+    else:
+        embed.set_footer(text="Use /fetch <exercise> <track> to get started")
 
     return embed
 

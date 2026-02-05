@@ -12,47 +12,9 @@ from utils.embeds import create_daily_problem_embed
 
 import discord
 from services.exercism_cli import ExercismCLI
+from services.exercism_api import get_exercism_api
 
 logger = logging.getLogger(__name__)
-
-
-# Exercise difficulty mapping (simplified - could be enhanced with API data)
-EXERCISE_DIFFICULTY = {
-    "beginner": [
-        "hello-world",
-        "two-fer",
-        "leap",
-        "bob",
-        "raindrops",
-        "isogram",
-        "pangram",
-    ],
-    "intermediate": [
-        "hamming",
-        "acronym",
-        "word-count",
-        "anagram",
-        "scrabble-score",
-        "roman-numerals",
-        "phone-number",
-    ],
-    "advanced": [
-        "sieve",
-        "nth-prime",
-        "largest-series-product",
-        "allergies",
-        "crypto-square",
-        "robot-name",
-    ],
-}
-
-COMMON_EXERCISES = {
-    "python": EXERCISE_DIFFICULTY["beginner"] + EXERCISE_DIFFICULTY["intermediate"],
-    "javascript": EXERCISE_DIFFICULTY["beginner"] + EXERCISE_DIFFICULTY["intermediate"],
-    "rust": EXERCISE_DIFFICULTY["beginner"] + EXERCISE_DIFFICULTY["intermediate"],
-    "go": EXERCISE_DIFFICULTY["beginner"] + EXERCISE_DIFFICULTY["intermediate"],
-    "java": EXERCISE_DIFFICULTY["beginner"] + EXERCISE_DIFFICULTY["intermediate"],
-}
 
 
 class DailyScheduler:
@@ -62,6 +24,7 @@ class DailyScheduler:
         self.bot = bot
         self.cli = cli
         self.data = data
+        self.api = get_exercism_api()  # Use the new REST API for reliable unlock checks
         self.subscribers: Dict[int, Dict] = (
             {}
         )  # user_id -> {tracks, channel_id, difficulty, track_index}
@@ -95,7 +58,7 @@ class DailyScheduler:
                     tracks = None  # Will be fetched dynamically
                 else:
                     tracks = loop.run_until_complete(self.cli.get_joined_tracks())
-            except:
+            except Exception:
                 tracks = None
 
             self.subscribers[user_id] = {
@@ -134,50 +97,43 @@ class DailyScheduler:
         """
         Get a random exercise for track and difficulty that is UNLOCKED for the user.
 
-        Uses real Exercism difficulty data from GitHub config.json.
-        Falls back to hardcoded mapping if API fetch fails.
-        Only returns exercises that are unlocked. Returns None if none are unlocked.
+        Uses Exercism REST API directly to get unlocked exercises.
         """
+        # Get exercises already in workspace (to avoid duplicates)
+        in_workspace = set(await self.cli.get_exercises_for_track(track))
+        
         try:
-            exercises = await self.cli.get_exercises_by_difficulty(track, difficulty)
-
-            if exercises:
-                logger.debug(
-                    f"Found {len(exercises)} exercises for {track} ({difficulty})"
-                )
-                in_workspace = await self.cli.get_exercises_for_track(track)
-                candidates = [e for e in exercises if e not in in_workspace]
-                random.shuffle(candidates)
-
-                for exercise in candidates[: min(10, len(candidates))]:
-                    if await self.cli.is_exercise_unlocked(exercise, track):
-                        logger.debug(
-                            f"Found unlocked exercise {exercise} for {track} ({difficulty})"
-                        )
-                        return exercise
+            unlocked_exercises = await self.api.get_unlocked_exercises_by_difficulty(
+                track, difficulty
+            )
+            
+            if unlocked_exercises:
+                # Filter out exercises already downloaded
+                candidates = [e for e in unlocked_exercises if e not in in_workspace]
+                
+                if candidates:
+                    exercise = random.choice(candidates)
+                    logger.info(
+                        f"Selected exercise {exercise} for {track} ({difficulty}) "
+                        f"via REST API ({len(candidates)} candidates)"
+                    )
+                    return exercise
+                else:
+                    logger.info(
+                        f"All {len(unlocked_exercises)} unlocked {difficulty} exercises "
+                        f"for {track} already in workspace"
+                    )
+                    # Return one anyway if all are in workspace (user might want to redo)
+                    if unlocked_exercises:
+                        return random.choice(unlocked_exercises)
+            else:
                 logger.warning(
-                    f"No unlocked exercises found for {track} ({difficulty}), trying fallback"
+                    f"No unlocked {difficulty} exercises found for {track} via API"
                 )
         except Exception as e:
-            logger.warning(f"Failed to fetch real difficulty data for {track}: {e}")
-
-        logger.debug(f"Using fallback difficulty mapping for {track} ({difficulty})")
-        exercises = EXERCISE_DIFFICULTY.get(difficulty, EXERCISE_DIFFICULTY["beginner"])
-        track_exercises = COMMON_EXERCISES.get(track, COMMON_EXERCISES["python"])
-        available = [e for e in exercises if e in track_exercises]
-        if not available:
-            available = list(track_exercises)
-
-        in_workspace = await self.cli.get_exercises_for_track(track)
-        candidates = [e for e in available if e not in in_workspace]
-        random.shuffle(candidates)
-
-        for exercise in candidates[: min(10, len(candidates))]:
-            if await self.cli.is_exercise_unlocked(exercise, track):
-                return exercise
-        logger.warning(
-            f"No unlocked exercises for {track} ({difficulty}); skipping daily problem"
-        )
+            logger.error(f"REST API failed for {track}: {e}")
+        
+        logger.warning(f"No unlocked exercises found for {track} ({difficulty})")
         return None
 
     async def send_daily_problem(self, user_id: int):
@@ -218,19 +174,23 @@ class DailyScheduler:
 
         if exercise is None:
             no_unlocked_embed = discord.Embed(
-                title="No Unlocked Exercises",
+                title="No Unlocked Exercises Available",
                 description=(
-                    f"No unlocked exercises for **{track.title()}** ({difficulty}).\n\n"
-                    "Complete more exercises on [exercism.io](https://exercism.org) to unlock more, "
-                    "then you'll receive daily problems again."
+                    f"No unlocked **{difficulty}** exercises found for **{track.title()}**.\n\n"
+                    "**Options to fix this:**\n"
+                    "1. **Complete Learning Exercises** on [exercism.org](https://exercism.org) to unlock more\n"
+                    "2. **Enable Practice Mode** to unlock ALL exercises:\n"
+                    f"   → Go to [exercism.org/tracks/{track}](https://exercism.org/tracks/{track})\n"
+                    "   → Click the `...` menu → 'Disable Learning Mode'\n"
+                    "3. **Try a different difficulty** with `/daily subscribe`"
                 ),
                 color=discord.Color.orange(),
             )
-            no_unlocked_embed.set_footer(text="Good luck! 🚀")
+            no_unlocked_embed.set_footer(text="Tip: Practice Mode unlocks everything instantly!")
             try:
                 if channel_id:
                     channel = self.bot.get_channel(channel_id)
-                    if channel and hasattr(channel, "send"):
+                    if channel and isinstance(channel, discord.TextChannel):
                         await channel.send(embed=no_unlocked_embed)
                     else:
                         user = await self.bot.fetch_user(user_id)
@@ -321,7 +281,7 @@ class DailyScheduler:
         try:
             if channel_id:
                 channel = self.bot.get_channel(channel_id)
-                if channel:
+                if channel and isinstance(channel, discord.TextChannel):
                     await channel.send(embed=embed)
                 else:
                     # Fallback to DM

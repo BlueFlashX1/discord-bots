@@ -17,9 +17,9 @@ import discord
 # Load environment variables
 load_dotenv()
 
-# Configure logging (strategic debugging, no verbose spam)
+# Configure logging
 logging.basicConfig(
-    level=logging.INFO,  # INFO for critical operations, WARNING/ERROR for issues
+    level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )

@@ -5,53 +5,11 @@ from typing import Optional
 
 from discord.ext import commands
 from services.exercism_cli import ExercismCLI
+from services.exercism_api import get_exercism_api
 from utils.embeds import create_daily_problem_embed
 
 import discord
 from discord import app_commands
-
-# Exercise difficulty mapping
-EXERCISE_DIFFICULTY = {
-    "beginner": [
-        "hello-world",
-        "two-fer",
-        "leap",
-        "bob",
-        "raindrops",
-        "isogram",
-        "pangram",
-    ],
-    "intermediate": [
-        "hamming",
-        "acronym",
-        "word-count",
-        "anagram",
-        "scrabble-score",
-    ],
-    "advanced": [
-        "sieve",
-        "nth-prime",
-        "largest-series-product",
-    ],
-}
-
-COMMON_EXERCISES = {
-    "python": (
-        EXERCISE_DIFFICULTY["beginner"]
-        + EXERCISE_DIFFICULTY["intermediate"]
-        + EXERCISE_DIFFICULTY["advanced"]
-    ),
-    "javascript": (
-        EXERCISE_DIFFICULTY["beginner"]
-        + EXERCISE_DIFFICULTY["intermediate"]
-        + EXERCISE_DIFFICULTY["advanced"]
-    ),
-    "rust": (
-        EXERCISE_DIFFICULTY["beginner"]
-        + EXERCISE_DIFFICULTY["intermediate"]
-        + EXERCISE_DIFFICULTY["advanced"]
-    ),
-}
 
 
 class DailyCommand(commands.Cog):
@@ -60,6 +18,7 @@ class DailyCommand(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.cli = ExercismCLI()
+        self.api = get_exercism_api()  # Use API for reliable unlock checks
 
     async def track_autocomplete(
         self, interaction: discord.Interaction, current: str
@@ -106,69 +65,46 @@ class DailyCommand(commands.Cog):
         track = track.lower().strip()
         difficulty_key = (difficulty or "").lower() or None
 
+        # Use API for reliable exercise fetching
         exercises = []
-        difficulties_map = {}
+        api_error = None
         try:
             if difficulty_key:
-                exercises = await self.cli.get_exercises_by_difficulty(
+                # Get unlocked exercises filtered by difficulty
+                exercises = await self.api.get_unlocked_exercises_by_difficulty(
                     track, difficulty_key
                 )
             else:
-                difficulties_map = await self.cli.get_track_difficulties(track)
-                exercises = list(difficulties_map.keys()) if difficulties_map else []
-        except Exception:
-            pass
+                # Get all unlocked exercises
+                unlocked = await self.api.get_unlocked_exercises(track)
+                exercises = list(unlocked)
+        except Exception as e:
+            api_error = str(e)
 
-        if not exercises:
-            if difficulty_key:
-                fallback = EXERCISE_DIFFICULTY.get(
-                    difficulty_key, EXERCISE_DIFFICULTY["beginner"]
-                )
-                track_exercises = COMMON_EXERCISES.get(
-                    track, COMMON_EXERCISES["python"]
-                )
-                exercises = [e for e in fallback if e in track_exercises]
-            else:
-                exercises = list(
-                    COMMON_EXERCISES.get(track, COMMON_EXERCISES["python"])
-                )
-
+        # Filter out exercises already in workspace
         in_workspace = await self.cli.get_exercises_for_track(track)
         candidates = [e for e in exercises if e not in in_workspace]
-        random.shuffle(candidates)
+        
+        # Pick a random exercise
+        exercise = random.choice(candidates) if candidates else None
+        actual_difficulty = difficulty_key.title() if difficulty_key else "Mixed"
 
-        exercise = None
-        max_checks = min(10, len(candidates))
-        for ex in candidates[:max_checks]:
-            if await self.cli.is_exercise_unlocked(ex, track):
-                exercise = ex
-                break
-
-        if exercise:
-            if difficulty_key:
-                actual_difficulty = difficulty_key.title()
-            elif difficulties_map and exercise in difficulties_map:
-                actual_difficulty = self.cli.map_difficulty_to_category(
-                    difficulties_map[exercise]
-                ).title()
-            else:
-                actual_difficulty = "Beginner"
-                for diff, ex_list in EXERCISE_DIFFICULTY.items():
-                    if exercise in ex_list:
-                        actual_difficulty = diff.title()
-                        break
-        else:
+        if not exercise:
             diff_str = f" ({difficulty_key})" if difficulty_key else ""
+            error_detail = f"\n\nAPI Error: {api_error}" if api_error else ""
             no_unlocked = discord.Embed(
-                title="No New Exercises",
+                title="No Exercises Available",
                 description=(
-                    f"No unlocked exercises for **{track.title()}**{diff_str}, "
-                    "or all suggested ones are already in your workspace (solved or in progress).\n\n"
-                    "Try a different track or difficulty, or complete more on [exercism.org](https://exercism.org) to unlock more."
+                    f"No unlocked exercises found for **{track.title()}**{diff_str}.\n\n"
+                    "**Possible reasons:**\n"
+                    "- All exercises are already in your workspace\n"
+                    "- Track is in Learning Mode (enable Practice Mode on exercism.org)\n"
+                    "- You haven't joined this track yet\n\n"
+                    f"Try a different track or difficulty.{error_detail}"
                 ),
                 color=discord.Color.orange(),
             )
-            no_unlocked.set_footer(text="Good luck!")
+            no_unlocked.set_footer(text="Visit exercism.org to unlock more exercises")
             await interaction.followup.send(embed=no_unlocked)
             return
 
@@ -207,31 +143,20 @@ class DailyCommand(commands.Cog):
         track = track.lower().strip()
         difficulty = (difficulty or "beginner").lower()
 
+        # Use API for reliable exercise fetching
         exercises = []
         try:
-            exercises = await self.cli.get_exercises_by_difficulty(
+            exercises = await self.api.get_unlocked_exercises_by_difficulty(
                 track, difficulty
             )
         except Exception:
             pass
-        if not exercises:
-            fallback = EXERCISE_DIFFICULTY.get(
-                difficulty, EXERCISE_DIFFICULTY["beginner"]
-            )
-            track_exercises = COMMON_EXERCISES.get(
-                track, COMMON_EXERCISES["python"]
-            )
-            exercises = [e for e in fallback if e in track_exercises]
 
         in_workspace = await self.cli.get_exercises_for_track(track)
         candidates = [e for e in exercises if e not in in_workspace]
-        random.shuffle(candidates)
-
-        exercise = None
-        for ex in candidates[: min(10, len(candidates))]:
-            if await self.cli.is_exercise_unlocked(ex, track):
-                exercise = ex
-                break
+        
+        # Pick random exercise (API already filtered to unlocked only)
+        exercise = random.choice(candidates) if candidates else None
 
         if not exercise:
             no_unlocked = discord.Embed(
