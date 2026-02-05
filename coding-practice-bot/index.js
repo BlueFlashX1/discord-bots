@@ -14,7 +14,7 @@ const Logger = require('../utils/logger');
 const { validateEnv, validators } = require('../utils/envValidator');
 
 // Initialize logger
-const logger = new Logger('coding-practice-bot');
+const logger = new Logger('coding-practice-bot', { script: __filename });
 
 // Validate environment variables
 try {

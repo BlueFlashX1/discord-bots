@@ -15,6 +15,14 @@ logger = logging.getLogger(__name__)
 class ExercismCLI:
     """Wrapper for Exercism CLI commands."""
 
+    # Common CLI locations to check
+    _CLI_PATHS = [
+        "exercism",
+        "/usr/local/bin/exercism",
+        "/opt/homebrew/bin/exercism",
+        os.path.expanduser("~/bin/exercism"),
+    ]
+
     def __init__(self, workspace: Optional[str] = None):
         """
         Initialize Exercism CLI wrapper.
@@ -23,37 +31,39 @@ class ExercismCLI:
             workspace: Exercism workspace path (defaults to CLI config)
         """
         self.workspace = workspace
-        self.cli_path = self._find_cli()
+        self._cli_path: Optional[str] = None  # Lazy-initialized
         self._difficulty_cache: Dict[str, Dict] = (
             {}
         )  # track -> {exercises: {slug: difficulty}, cached_at: timestamp}
 
-    def _find_cli(self) -> str:
-        """Find Exercism CLI binary."""
-        # Try common locations
-        possible_paths = [
-            "exercism",
-            "/usr/local/bin/exercism",
-            "/opt/homebrew/bin/exercism",
-            os.path.expanduser("~/bin/exercism"),
-        ]
+    @property
+    def cli_path(self) -> str:
+        """Get CLI path, using cached value or default."""
+        return self._cli_path or "exercism"
 
-        for path in possible_paths:
+    async def _find_cli_async(self) -> str:
+        """Find Exercism CLI binary asynchronously."""
+        if self._cli_path:
+            return self._cli_path
+
+        for path in self._CLI_PATHS:
             try:
-                result = subprocess.run(
-                    [path, "version"],
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
+                process = await asyncio.create_subprocess_exec(
+                    path, "version",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
                 )
-                if result.returncode == 0:
+                await asyncio.wait_for(process.communicate(), timeout=5)
+                if process.returncode == 0:
                     logger.info(f"Found Exercism CLI at: {path}")
+                    self._cli_path = path
                     return path
-            except (FileNotFoundError, subprocess.TimeoutExpired):
+            except (FileNotFoundError, asyncio.TimeoutError, OSError):
                 continue
 
         # Default to 'exercism' (assumes it's in PATH)
         logger.warning("Exercism CLI not found in common locations, using 'exercism'")
+        self._cli_path = "exercism"
         return "exercism"
 
     async def _run_command(
@@ -69,7 +79,9 @@ class ExercismCLI:
         Returns:
             Tuple of (returncode, stdout, stderr)
         """
-        cmd = [self.cli_path] + args
+        # Ensure CLI path is discovered (lazy async initialization)
+        cli = await self._find_cli_async()
+        cmd = [cli] + args
         logger.debug(f"Running command: {' '.join(cmd)}")
 
         try:
@@ -294,20 +306,29 @@ class ExercismCLI:
             "r",
         ]
 
+    # Non-track directories to exclude (tool caches, version control, etc.)
+    _NON_TRACK_DIRS = frozenset({".pytest_cache", "__pycache__", ".git", "node_modules"})
+
     async def get_joined_tracks(self) -> List[str]:
-        """Get list of tracks the user has joined (from workspace)."""
+        """Get list of tracks the user has joined (from workspace).
+
+        Only returns directories that look like valid Exercism tracks.
+        Filters out hidden dirs (.) and known tool directories.
+        """
         workspace = await self.get_workspace()
         if not workspace or not os.path.exists(workspace):
             return []
 
         joined_tracks = []
         try:
-            # Check workspace directory for track folders
             if os.path.isdir(workspace):
                 for item in os.listdir(workspace):
+                    # Skip hidden dirs (.pytest_cache, .git, etc.) - not valid tracks
+                    if item.startswith("."):
+                        continue
+                    if item in self._NON_TRACK_DIRS:
+                        continue
                     track_path = os.path.join(workspace, item)
-                    # Only include directories (tracks) that exist
-                    # A track is considered "joined" if it has a directory in workspace
                     if os.path.isdir(track_path):
                         joined_tracks.append(item)
         except Exception as e:

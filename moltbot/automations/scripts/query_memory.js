@@ -1,11 +1,20 @@
 #!/usr/bin/env node
 
-import { readFileSync, existsSync, readdirSync } from 'fs';
-import { join, dirname } from 'path';
+import dotenv from 'dotenv';
+import { existsSync, readdirSync, readFileSync } from 'fs';
+import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Load .env from project root
+dotenv.config({ path: resolve(__dirname, '../../.env') });
+
+// Import transfer utility
+import FileTransfer from '../utils/transfer.js';
+
+const transfer = new FileTransfer();
 
 const AUTOMATIONS_DIR = dirname(__dirname);
 const OUTPUT_DIR = join(AUTOMATIONS_DIR, 'output');
@@ -16,36 +25,36 @@ const SUMMARIES_DIR = join(JOURNAL_DIR, 'summaries');
 function parseTimeRange(range) {
   const endDate = new Date();
   let startDate;
-  
+
   switch (range) {
     case '1d':
     case 'today':
       startDate = new Date();
       startDate.setHours(0, 0, 0, 0);
       break;
-      
+
     case '3d':
       startDate = new Date();
       startDate.setDate(endDate.getDate() - 3);
       break;
-      
+
     case '7d':
     case 'last_week':
       startDate = new Date();
       startDate.setDate(endDate.getDate() - 7);
       break;
-      
+
     case '30d':
     case 'last_month':
       startDate = new Date();
       startDate.setDate(endDate.getDate() - 30);
       break;
-      
+
     case '90d':
       startDate = new Date();
       startDate.setDate(endDate.getDate() - 90);
       break;
-      
+
     default:
       // Try to parse as number of days
       const days = parseInt(range);
@@ -56,7 +65,7 @@ function parseTimeRange(range) {
         return null;
       }
   }
-  
+
   return { startDate, endDate };
 }
 
@@ -65,12 +74,12 @@ function parseMonth(monthStr) {
   if (!/^\d{4}-\d{2}$/.test(monthStr)) {
     return null;
   }
-  
+
   const [year, month] = monthStr.split('-').map(Number);
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0); // Last day of month
   endDate.setHours(23, 59, 59, 999);
-  
+
   return { startDate, endDate };
 }
 
@@ -79,18 +88,18 @@ function parseWeek(weekStr) {
   if (!/^\d{4}-W\d{2}$/.test(weekStr)) {
     return null;
   }
-  
+
   const [year, weekNum] = weekStr.split('-W').map(Number);
-  
+
   // Calculate start date of the week
   const firstDayOfYear = new Date(year, 0, 1);
   const daysOffset = (weekNum - 1) * 7 - firstDayOfYear.getDay();
   const startDate = new Date(firstDayOfYear.getTime() + daysOffset * 24 * 60 * 60 * 1000);
-  
+
   const endDate = new Date(startDate);
   endDate.setDate(startDate.getDate() + 6);
   endDate.setHours(23, 59, 59, 999);
-  
+
   return { startDate, endDate };
 }
 
@@ -99,38 +108,38 @@ function parseDate(dateStr) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     return null;
   }
-  
+
   const startDate = new Date(dateStr + 'T00:00:00.000Z');
   const endDate = new Date(dateStr + 'T23:59:59.999Z');
-  
+
   return { startDate, endDate };
 }
 
 // Find the best summary files for a time range
 function findBestSummaryFiles(startDate, endDate) {
   const files = [];
-  
+
   // Check for monthly summary first (most efficient)
   if (!existsSync(SUMMARIES_DIR)) {
     return files;
   }
-  
+
   const allFiles = readdirSync(SUMMARIES_DIR).filter(f => f.endsWith('.md'));
-  
+
   // Sort files by priority: monthly > weekly > daily
   const monthlyFiles = allFiles.filter(f => /^\d{4}-\d{2}\.md$/.test(f));
   const weeklyFiles = allFiles.filter(f => /^\d{4}-W\d{2}\.md$/.test(f));
   const dailyFiles = allFiles.filter(f => /^\d{4}-\d{2}-\d{2}\.md$/.test(f));
-  
+
   // Try to use monthly summaries if the range spans a month or more
   const daysInRange = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-  
+
   if (daysInRange >= 25) {
     // Use monthly summaries
     for (const file of monthlyFiles) {
       const [year, month] = file.replace('.md', '').split('-');
       const fileDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-      
+
       if (fileDate >= startDate && fileDate <= endDate) {
         files.push({
           type: 'monthly',
@@ -140,13 +149,13 @@ function findBestSummaryFiles(startDate, endDate) {
       }
     }
   }
-  
+
   // If we couldn't find good monthly coverage, try weekly
   if (files.length === 0 || daysInRange >= 7) {
     for (const file of weeklyFiles) {
       const weekRange = parseWeek(file.replace('.md', ''));
       if (!weekRange) continue;
-      
+
       // Check if this week overlaps with our search range
       if (weekRange.startDate <= endDate && weekRange.endDate >= startDate) {
         files.push({
@@ -157,7 +166,7 @@ function findBestSummaryFiles(startDate, endDate) {
       }
     }
   }
-  
+
   // Fall back to daily journals if needed
   if (files.length === 0 || daysInRange < 7) {
     // Search for daily journals
@@ -166,7 +175,7 @@ function findBestSummaryFiles(startDate, endDate) {
       const dateStr = currentDate.toISOString().split('T')[0];
       const [year, month] = dateStr.split('-');
       const journalPath = join(JOURNAL_DIR, year, month, `${dateStr}.md`);
-      
+
       if (existsSync(journalPath)) {
         files.push({
           type: 'daily',
@@ -174,26 +183,26 @@ function findBestSummaryFiles(startDate, endDate) {
           path: journalPath
         });
       }
-      
+
       currentDate.setDate(currentDate.getDate() + 1);
     }
   }
-  
+
   return files.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 // Search for files containing specific keywords
 function searchByKeyword(query) {
   const results = [];
-  
+
   // Search in summaries first
   if (existsSync(SUMMARIES_DIR)) {
     const summaryFiles = readdirSync(SUMMARIES_DIR).filter(f => f.endsWith('.md'));
-    
+
     for (const file of summaryFiles) {
       const filePath = join(SUMMARIES_DIR, file);
       const content = readFileSync(filePath, 'utf8').toLowerCase();
-      
+
       if (content.includes(query.toLowerCase())) {
         results.push({
           type: file.includes('-W') ? 'weekly' : (file.length === 7 ? 'monthly' : 'daily'),
@@ -204,28 +213,28 @@ function searchByKeyword(query) {
       }
     }
   }
-  
+
   // Search in daily journals if needed
   if (results.length < 5) {
     if (existsSync(JOURNAL_DIR)) {
       const years = readdirSync(JOURNAL_DIR);
-      
+
       for (const year of years) {
         const yearDir = join(JOURNAL_DIR, year);
         if (!yearDir.isDirectory()) continue;
-        
+
         const months = readdirSync(yearDir);
-        
+
         for (const month of months) {
           const monthDir = join(yearDir, month);
           if (!monthDir.isDirectory()) continue;
-          
+
           const dailyFiles = readdirSync(monthDir).filter(f => f.endsWith('.md'));
-          
+
           for (const file of dailyFiles) {
             const filePath = join(monthDir, file);
             const content = readFileSync(filePath, 'utf8').toLowerCase();
-            
+
             if (content.includes(query.toLowerCase())) {
               results.push({
                 type: 'daily',
@@ -239,7 +248,7 @@ function searchByKeyword(query) {
       }
     }
   }
-  
+
   return results.sort((a, b) => b.date.localeCompare(a.date)); // Most recent first
 }
 
@@ -247,24 +256,24 @@ function searchByKeyword(query) {
 function extractPreview(content, query) {
   const queryLower = query.toLowerCase();
   const index = content.indexOf(queryLower);
-  
+
   if (index === -1) return content.substring(0, 200) + '...';
-  
+
   const start = Math.max(0, index - 100);
   const end = Math.min(content.length, index + query.length + 100);
-  
+
   let preview = content.substring(start, end);
-  
+
   if (start > 0) preview = '...' + preview;
   if (end < content.length) preview = preview + '...';
-  
+
   return preview;
 }
 
 // Read and concatenate file contents
 function readFileContents(files) {
   let combinedContent = '';
-  
+
   for (const file of files) {
     try {
       const content = readFileSync(file.path, 'utf8');
@@ -274,23 +283,23 @@ function readFileContents(files) {
       console.warn(`Error reading ${file.path}: ${error.message}`);
     }
   }
-  
+
   return combinedContent.trim();
 }
 
 // Main query function
 function queryMemory(query, options = {}) {
   const { range, month, week, date, keyword } = options;
-  
+
   let files = [];
   let queryContext = '';
-  
+
   if (keyword) {
     // Keyword search
     console.log(`Searching for keyword: "${keyword}"`);
     files = searchByKeyword(keyword);
     queryContext = `Search results for "${keyword}":\n\n`;
-    
+
     // Show file list first for keyword searches
     if (files.length > 0) {
       console.log(`\nFound ${files.length} matching files:`);
@@ -305,7 +314,7 @@ function queryMemory(query, options = {}) {
       console.log(`No results found for "${keyword}"`);
       return '';
     }
-    
+
   } else if (range) {
     // Time range query
     const timeRange = parseTimeRange(range);
@@ -313,11 +322,11 @@ function queryMemory(query, options = {}) {
       console.error(`Invalid time range: ${range}`);
       return '';
     }
-    
+
     console.log(`Querying memory from ${timeRange.startDate.toDateString()} to ${timeRange.endDate.toDateString()}`);
     files = findBestSummaryFiles(timeRange.startDate, timeRange.endDate);
     queryContext = `Memory from ${range} (${timeRange.startDate.toDateString()} - ${timeRange.endDate.toDateString()}):\n\n`;
-    
+
   } else if (month) {
     // Month query
     const monthRange = parseMonth(month);
@@ -325,11 +334,11 @@ function queryMemory(query, options = {}) {
       console.error(`Invalid month format: ${month}. Use YYYY-MM`);
       return '';
     }
-    
+
     console.log(`Querying memory for ${month}`);
     files = findBestSummaryFiles(monthRange.startDate, monthRange.endDate);
     queryContext = `Memory for ${month}:\n\n`;
-    
+
   } else if (week) {
     // Week query
     const weekRange = parseWeek(week);
@@ -337,11 +346,11 @@ function queryMemory(query, options = {}) {
       console.error(`Invalid week format: ${week}. Use YYYY-WXX`);
       return '';
     }
-    
+
     console.log(`Querying memory for week ${week}`);
     files = findBestSummaryFiles(weekRange.startDate, weekRange.endDate);
     queryContext = `Memory for week ${week}:\n\n`;
-    
+
   } else if (date) {
     // Date query
     const dateRange = parseDate(date);
@@ -349,27 +358,27 @@ function queryMemory(query, options = {}) {
       console.error(`Invalid date format: ${date}. Use YYYY-MM-DD`);
       return '';
     }
-    
+
     console.log(`Querying memory for ${date}`);
     files = findBestSummaryFiles(dateRange.startDate, dateRange.endDate);
     queryContext = `Memory for ${date}:\n\n`;
-    
+
   } else {
     // Default to last 7 days
     const timeRange = parseTimeRange('7d');
     files = findBestSummaryFiles(timeRange.startDate, timeRange.endDate);
     queryContext = `Memory from last 7 days:\n\n`;
   }
-  
+
   if (files.length === 0) {
     console.log('No relevant memory files found');
     return '';
   }
-  
+
   console.log(`Reading ${files.length} memory files...`);
-  
+
   const content = readFileContents(files);
-  
+
   if (query) {
     return queryContext + content + `\n\nBased on the above memory, please answer: ${query}`;
   } else {
@@ -380,7 +389,7 @@ function queryMemory(query, options = {}) {
 // Main function
 async function main() {
   const args = process.argv.slice(2);
-  
+
   // Parse arguments
   let query = '';
   let range = null;
@@ -388,7 +397,7 @@ async function main() {
   let week = null;
   let date = null;
   let keyword = null;
-  
+
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
       case '--query':
@@ -451,9 +460,9 @@ Examples:
         return;
     }
   }
-  
+
   const result = queryMemory(query, { range, month, week, date, keyword });
-  
+
   if (result) {
     console.log('\n' + '='.repeat(60));
     console.log('MEMORY QUERY RESULTS:');

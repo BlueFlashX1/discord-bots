@@ -14,15 +14,13 @@ from utils.data_manager import DataManager
 
 import discord
 
+from logging_utils.python_logging import init_logging
+
 # Load environment variables
 load_dotenv()
 
-# Configure logging (strategic debugging, no verbose spam)
-logging.basicConfig(
-    level=logging.INFO,  # INFO for critical operations, WARNING/ERROR for issues
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
+RUN_ID = init_logging("reminder-bot")
+
 # Suppress discord.py verbose logging
 logging.getLogger("discord").setLevel(logging.WARNING)
 logging.getLogger("discord.http").setLevel(logging.WARNING)

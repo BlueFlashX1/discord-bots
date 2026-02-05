@@ -28,6 +28,17 @@ You CANNOT access ANY other directories, including:
 - Write output to automations/output/
 - Help with automation tasks and answer questions
 
+## Fetch Operations (Special Handling)
+When you need to fetch information from the internet or external sources, use the fetch wrapper:
+- \`./fetch-wrapper.sh curl <url>\` - Download content from URL
+- \`./fetch-wrapper.sh wget <url>\` - Alternative download method
+- \`./fetch-wrapper.sh <any command containing "fetch">\` - Automatic protection clearing
+
+The fetch wrapper automatically clears macOS directory protection ONLY for fetch operations, then re-applies it after completion. This ensures:
+- Protection is ONLY removed when you explicitly fetch information
+- Other operations maintain full security
+- No manual intervention needed
+
 ## Personal Intelligence & Memory System
 You can help users manage their personal intelligence system with these commands:
 

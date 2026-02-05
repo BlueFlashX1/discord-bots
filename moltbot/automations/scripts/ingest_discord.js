@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { join, dirname } from 'path';
+import { REST, Routes } from 'discord.js';
+import dotenv from 'dotenv';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
-import { REST } from '@discordjs/rest';
-import { Routes } from 'discord-api-types/v10';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Load .env from project root (2 levels up: automations/scripts -> automations -> moltbot)
+dotenv.config({ path: resolve(__dirname, '../../.env') });
 
 const AUTOMATIONS_DIR = dirname(__dirname);
 const CONFIG_DIR = join(AUTOMATIONS_DIR, 'config');
@@ -16,10 +19,10 @@ const RAW_DIR = join(DATA_DIR, 'raw');
 
 // Load configuration
 const channelsConfig = JSON.parse(readFileSync(join(CONFIG_DIR, 'channels.json'), 'utf8'));
-const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
+const DISCORD_BOT_TOKEN = process.env.DISCORD_TOKEN;
 
 if (!DISCORD_BOT_TOKEN) {
-  console.error('DISCORD_BOT_TOKEN environment variable is required');
+  console.error('DISCORD_TOKEN environment variable is required');
   process.exit(1);
 }
 
@@ -84,7 +87,7 @@ function getWeekString(date) {
 // Save messages to appropriate files
 function saveMessages(messages, category, channelName) {
   const messagesByDate = {};
-  
+
   // Group messages by date
   messages.forEach(message => {
     const dateStr = getDateString(message.timestamp);
@@ -93,19 +96,19 @@ function saveMessages(messages, category, channelName) {
     }
     messagesByDate[dateStr].push(message);
   });
-  
+
   // Save to daily files
   Object.entries(messagesByDate).forEach(([dateStr, dayMessages]) => {
     const categoryDir = join(RAW_DIR, category, channelName);
     ensureDirectory(categoryDir);
-    
+
     const filePath = join(categoryDir, `${dateStr}.jsonl`);
     const existingContent = existsSync(filePath) ? readFileSync(filePath, 'utf8') : '';
-    
+
     // Append new messages
     const newContent = dayMessages.map(msg => JSON.stringify(msg)).join('\n') + '\n';
     writeFileSync(filePath, existingContent + newContent);
-    
+
     console.log(`Saved ${dayMessages.length} messages to ${filePath}`);
   });
 }
@@ -117,7 +120,7 @@ async function fetchChannelMessages(channelId, watermark = null) {
     if (watermark) {
       url += `?after=${watermark}`;
     }
-    
+
     const messages = await rest.get(url);
     return messages.reverse(); // Process in chronological order
   } catch (error) {
@@ -140,56 +143,56 @@ async function getChannelName(channelId) {
 // Main ingestion function
 async function ingestDiscord() {
   console.log('Starting Discord data ingestion...');
-  
+
   ensureDirectory(RAW_DIR);
   const watermarks = loadWatermarks();
   const newWatermarks = { ...watermarks };
-  
+
   const enabledChannels = Object.entries(channelsConfig.channels)
     .filter(([_, config]) => config.enabled);
-  
+
   console.log(`Processing ${enabledChannels.length} channels...`);
-  
+
   for (const [channelId, config] of enabledChannels) {
     console.log(`\nProcessing channel: ${config.category} (${channelId})`);
-    
+
     const channelName = await getChannelName(channelId);
     const lastWatermark = watermarks[channelId];
-    
+
     const messages = await fetchChannelMessages(channelId, lastWatermark);
-    
+
     if (messages.length === 0) {
       console.log('No new messages found');
       continue;
     }
-    
+
     // Filter messages by age (don't ingest very old messages)
     const maxAgeTimestamp = Date.now() - (channelsConfig.ingestion.maxAgeDays * 24 * 60 * 60 * 1000);
-    const recentMessages = messages.filter(msg => 
+    const recentMessages = messages.filter(msg =>
       new Date(msg.timestamp).getTime() > maxAgeTimestamp
     );
-    
+
     if (recentMessages.length === 0) {
       console.log('No recent messages (all older than max age)');
       continue;
     }
-    
+
     // Format and save messages
     const formattedMessages = recentMessages.map(formatMessage);
     saveMessages(formattedMessages, config.category, channelName);
-    
+
     // Update watermark to the newest message ID
     newWatermarks[channelId] = recentMessages[recentMessages.length - 1].id;
-    
+
     console.log(`Processed ${recentMessages.length} recent messages`);
-    
+
     // Rate limiting
     if (enabledChannels.indexOf([channelId, config]) < enabledChannels.length - 1) {
       console.log(`Waiting ${channelsConfig.ingestion.rateLimitDelay}ms before next channel...`);
       await new Promise(resolve => setTimeout(resolve, channelsConfig.ingestion.rateLimitDelay));
     }
   }
-  
+
   saveWatermarks(newWatermarks);
   console.log('\nIngestion completed successfully!');
 }

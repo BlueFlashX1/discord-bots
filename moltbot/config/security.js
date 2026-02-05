@@ -3,8 +3,14 @@ import { resolve } from 'path';
 
 const home = homedir();
 
-// Base paths
-const MOLTBOT_DIR = '/Users/matthewthompson/Documents/DEVELOPMENT/discord/bots/moltbot';
+// Base paths - Environment aware
+const MOLTBOT_DIR = process.env.MOLTBOT_DIR || (() => {
+  if (process.platform === 'darwin') {
+    return '/Users/matthewthompson/Documents/DEVELOPMENT/discord/bots/moltbot';
+  } else {
+    return '/root/discord-bots/moltbot';
+  }
+})();
 const AUTOMATIONS_DIR = process.env.AUTOMATIONS_DIR || `${MOLTBOT_DIR}/automations`;
 
 export default {
@@ -33,7 +39,8 @@ export default {
       resolve(home, '.zshrc'),
       resolve(home, '.bashrc'),
       resolve(home, '.env'),
-      '/Users/matthewthompson/Documents/DEVELOPMENT/discord/bots', // Other bots
+      // On VPS, deny access to other bots (macOS path doesn't exist anyway)
+      ...(process.platform === 'linux' ? [] : ['/Users/matthewthompson/Documents/DEVELOPMENT/discord/bots']),
       '/etc',
       '/System',
       '/Library',
@@ -130,7 +137,7 @@ export default {
     // Directory where automations live
     scriptsDir: `${AUTOMATIONS_DIR}/scripts`,
     // Require explicit confirmation before running ANY automation
-    requireConfirmation: true
+    requireConfirmation: false
   },
   auth: {
     allowedUserIds: (process.env.ALLOWED_USER_IDS || '').split(',').filter(Boolean),

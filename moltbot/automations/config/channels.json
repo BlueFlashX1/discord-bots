@@ -1,24 +1,49 @@
 {
   "channels": {
-    "DISCORD_CHANNEL_ID_NEWS": {
+    "1464842209441484915": {
       "category": "News",
       "enabled": true,
-      "description": "News and RSS feeds"
+      "description": "Main news feed - primary news source"
     },
-    "DISCORD_CHANNEL_ID_GITHUB": {
+    "1464069945687281706": {
+      "category": "News",
+      "enabled": true,
+      "description": "Technology news and updates"
+    },
+    "1462540896208949454": {
+      "category": "News",
+      "enabled": true,
+      "description": "Youtube subscriptions alert"
+    },
+    "1462980201360396448": {
+      "category": "News",
+      "enabled": true,
+      "description": "Reddit RSS feed notifications"
+    },
+    "1462350848054001745": {
+      "category": "News",
+      "enabled": true,
+      "description": "Data science news"
+    },
+    "1462353695277842587": {
+      "category": "News",
+      "enabled": true,
+      "description": "Programming news"
+    },
+    "1464797382884593714": {
+      "category": "News",
+      "enabled": true,
+      "description": "AI news"
+    },
+    "1463430645224308871": {
       "category": "Development",
       "enabled": true,
-      "description": "GitHub notifications and commits"
+      "description": "GitHub main notifications and status alert"
     },
-    "DISCORD_CHANNEL_ID_SYSTEM_LOGS": {
+    "YOUR_SYSTEM_LOGS_ID": {
       "category": "System",
-      "enabled": true,
-      "description": "System logs and alerts"
-    },
-    "DISCORD_CHANNEL_ID_WORK": {
-      "category": "Work",
-      "enabled": true,
-      "description": "Work-related updates"
+      "enabled": false,
+      "description": "System logs and bot status updates (placeholder for future use)"
     }
   },
   "ingestion": {

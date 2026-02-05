@@ -3,7 +3,7 @@ const { COLORS, createTaskEmbed } = require('../utils/embeds');
 const Logger = require('../../utils/logger');
 const { retryDiscordAPI } = require('../../utils/retry');
 
-const logger = new Logger('todoist-create');
+const logger = new Logger('todoist-create', { script: __filename });
 
 module.exports = {
   data: new SlashCommandBuilder()

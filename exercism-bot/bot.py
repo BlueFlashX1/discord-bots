@@ -10,6 +10,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 from services.daily_scheduler import DailyScheduler
 from services.exercism_cli import ExercismCLI
+from services.exercism_api import get_exercism_api
 from utils.data_manager import DataManager
 
 import discord
@@ -125,8 +126,15 @@ class ExercismBot(commands.Bot):
                 self.daily_scheduler.stop()
         except Exception as e:
             logger.error(f"Error stopping daily scheduler: {e}")
-        finally:
-            await super().close()
+        
+        # Close the ExercismAPI session to prevent unclosed connector warnings
+        try:
+            api = get_exercism_api()
+            await api.close()
+        except Exception as e:
+            logger.error(f"Error closing ExercismAPI session: {e}")
+        
+        await super().close()
 
     async def on_command_error(self, ctx, error):
         """Handle command errors."""

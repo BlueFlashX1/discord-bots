@@ -2,6 +2,8 @@
 
 import json
 import logging
+import os
+import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -32,11 +34,29 @@ class DataManager:
             return default or {}
 
     def save_json(self, filename: str, data: Dict) -> bool:
-        """Save JSON data to file."""
+        """Save JSON data to file atomically.
+        
+        Writes to a temp file first, then atomically renames to prevent
+        data corruption if the process crashes during write.
+        """
         file_path = self._get_file_path(filename)
         try:
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            # Write to temp file in same directory (ensures same filesystem for atomic rename)
+            fd, tmp_path = tempfile.mkstemp(
+                dir=self.data_dir,
+                prefix=f".{filename}.",
+                suffix=".tmp"
+            )
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+                # Atomic rename (POSIX guarantees atomicity on same filesystem)
+                os.replace(tmp_path, file_path)
+            except Exception:
+                # Clean up temp file on error
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+                raise
             return True
         except Exception as e:
             logger.error(f"Error saving {filename}: {e}")

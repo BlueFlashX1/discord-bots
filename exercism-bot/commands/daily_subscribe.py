@@ -2,6 +2,7 @@
 
 from discord.ext import commands
 from services.exercism_cli import ExercismCLI
+from utils.autocomplete import track_autocomplete_with_all
 from utils.embeds import create_error_embed, create_success_embed
 
 import discord
@@ -15,37 +16,6 @@ class DailySubscribeCommand(commands.Cog):
         self.bot = bot
         self.cli = ExercismCLI()
 
-    async def track_autocomplete(
-        self, interaction: discord.Interaction, current: str
-    ) -> list[app_commands.Choice[str]]:
-        """Autocomplete for track parameter - shows joined tracks + 'all' option."""
-        tracks = await self.cli.get_joined_tracks()
-        current_lower = current.lower()
-
-        choices = []
-
-        # Always include "all" option if user types "all" or "a" or empty
-        if "all" in current_lower or current_lower == "" or current_lower == "a":
-            choices.append(
-                app_commands.Choice(name="All Tracks (Rotate Daily)", value="all")
-            )
-
-        # Add joined tracks
-        if tracks:
-            matching = [
-                track
-                for track in tracks
-                if current_lower in track.lower() and track.lower() != "all"
-            ]
-            choices.extend(
-                [
-                    app_commands.Choice(name=track.title(), value=track)
-                    for track in sorted(matching)
-                ]
-            )
-
-        return choices[:25]  # Discord limit
-
     @app_commands.command(
         name="daily_subscribe",
         description="Subscribe to daily coding problems",
@@ -56,7 +26,7 @@ class DailySubscribeCommand(commands.Cog):
         channel="Channel to send daily problems (optional, defaults to DM)",
         all_tracks="Subscribe to all joined tracks and rotate daily",
     )
-    @app_commands.autocomplete(track=track_autocomplete)
+    @app_commands.autocomplete(track=track_autocomplete_with_all)
     @app_commands.choices(
         difficulty=[
             app_commands.Choice(name="Beginner", value="beginner"),

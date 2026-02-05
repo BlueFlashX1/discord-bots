@@ -17,7 +17,7 @@ class ProblemAutoPoster {
     this.codewarsProgress = codewarsProgress;
     this.cronJob = null;
     this.isRunning = false;
-    this.logger = new Logger('problem-auto-poster');
+    this.logger = new Logger('problem-auto-poster', { script: __filename });
     this.recentlyPostedByChannel = new Map();
   }
 

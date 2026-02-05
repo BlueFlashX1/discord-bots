@@ -10,7 +10,7 @@ const Logger = require('../utils/logger');
 const { validateEnv, validators } = require('../utils/envValidator');
 
 // Initialize logger
-const logger = new Logger('youtube-monitor-bot');
+const logger = new Logger('youtube-monitor-bot', { script: __filename });
 
 // Validate environment variables
 try {

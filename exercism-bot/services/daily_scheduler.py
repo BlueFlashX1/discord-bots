@@ -20,14 +20,29 @@ logger = logging.getLogger(__name__)
 class DailyScheduler:
     """Manages daily problem delivery."""
 
+    SUBSCRIBERS_FILE = "subscribers.json"
+
     def __init__(self, bot: discord.Client, cli: ExercismCLI, data: DataManager):
         self.bot = bot
         self.cli = cli
         self.data = data
         self.api = get_exercism_api()  # Use the new REST API for reliable unlock checks
-        self.subscribers: Dict[int, Dict] = (
-            {}
-        )  # user_id -> {tracks, channel_id, difficulty, track_index}
+        # Load persisted subscribers from disk
+        self.subscribers: Dict[int, Dict] = self._load_subscribers()
+
+    def _load_subscribers(self) -> Dict[int, Dict]:
+        """Load subscribers from persistent storage."""
+        raw = self.data.load_json(self.SUBSCRIBERS_FILE, {})
+        # JSON stores keys as strings, convert back to int
+        return {int(k): v for k, v in raw.items()}
+
+    def _save_subscribers(self) -> None:
+        """Persist subscribers to disk."""
+        # Convert int keys to strings for JSON compatibility
+        self.data.save_json(
+            self.SUBSCRIBERS_FILE,
+            {str(k): v for k, v in self.subscribers.items()}
+        )
 
     def subscribe(
         self,
@@ -84,11 +99,15 @@ class DailyScheduler:
             logger.info(
                 f"User {user_id} subscribed to daily {track} problems ({difficulty})"
             )
+        
+        # Persist to disk
+        self._save_subscribers()
 
     def unsubscribe(self, user_id: int):
         """Unsubscribe a user from daily problems."""
         if user_id in self.subscribers:
             del self.subscribers[user_id]
+            self._save_subscribers()  # Persist to disk
             logger.info(f"User {user_id} unsubscribed from daily problems")
 
     async def get_random_exercise(

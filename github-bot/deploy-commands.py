@@ -1,7 +1,6 @@
 """Deploy slash commands to Discord."""
 
 import asyncio
-import logging
 import os
 import sys
 
@@ -9,9 +8,11 @@ import discord
 from discord import app_commands
 from dotenv import load_dotenv
 
+from logging_utils.python_logging import init_logging
+
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO)
+RUN_ID = init_logging("github-bot-deploy")
 logger = logging.getLogger(__name__)
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
@@ -53,4 +54,12 @@ async def deploy():
 
 
 if __name__ == "__main__":
-    asyncio.run(deploy())
+    try:
+        logger.info("deploy_commands_start", extra={"data": {"run_id": RUN_ID}})
+        asyncio.run(deploy())
+        logger.info("deploy_commands_complete", extra={"data": {"run_id": RUN_ID}})
+    except Exception as exc:
+        logger.exception(
+            "deploy_commands_failed", extra={"data": {"run_id": RUN_ID, "error": str(exc)}}
+        )
+        raise

@@ -13,15 +13,13 @@ from dotenv import load_dotenv
 from services.starboard_service import StarboardService
 from utils.data_manager import DataManager
 
+from logging_utils.python_logging import init_logging
+
 # Load environment variables
 load_dotenv()
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,  # INFO level: important events only
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
+RUN_ID = init_logging("starboard-bot")
+
 # Suppress discord.py verbose logging
 logging.getLogger("discord").setLevel(logging.WARNING)
 logging.getLogger("discord.http").setLevel(logging.WARNING)

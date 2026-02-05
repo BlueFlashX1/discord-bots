@@ -7,6 +7,7 @@ import random
 
 from services.exercism_cli import ExercismCLI
 from services.exercism_api import get_exercism_api
+from utils.autocomplete import track_autocomplete
 from utils.embeds import create_exercise_embed, create_error_embed
 from utils.data_manager import DataManager
 
@@ -71,24 +72,6 @@ class RecommendCommand(commands.Cog):
                 pass
 
         return recommendations[:5]  # Return top 5
-
-    async def track_autocomplete(
-        self, interaction: discord.Interaction, current: str
-    ) -> list[app_commands.Choice[str]]:
-        """Autocomplete for track parameter - only shows joined tracks."""
-        tracks = await self.cli.get_joined_tracks()
-        if not tracks:
-            return []
-        current_lower = current.lower()
-        matching = [
-            track
-            for track in tracks
-            if current_lower in track.lower()
-        ]
-        return [
-            app_commands.Choice(name=track.title(), value=track)
-            for track in sorted(matching)[:25]
-        ]
 
     @app_commands.command(
         name="recommend",

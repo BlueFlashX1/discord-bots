@@ -9,7 +9,7 @@ const Logger = require('../utils/logger');
 const { validateEnv, validators } = require('../utils/envValidator');
 
 // Initialize logger
-const logger = new Logger('todoist-bot');
+const logger = new Logger('todoist-bot', { script: __filename });
 
 // Validate environment variables
 try {

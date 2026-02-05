@@ -6,6 +6,7 @@ from typing import Optional
 from discord.ext import commands
 from services.exercism_cli import ExercismCLI
 from services.exercism_api import get_exercism_api
+from utils.autocomplete import track_autocomplete
 from utils.embeds import create_daily_problem_embed
 
 import discord
@@ -19,24 +20,6 @@ class DailyCommand(commands.Cog):
         self.bot = bot
         self.cli = ExercismCLI()
         self.api = get_exercism_api()  # Use API for reliable unlock checks
-
-    async def track_autocomplete(
-        self, interaction: discord.Interaction, current: str
-    ) -> list[app_commands.Choice[str]]:
-        """Autocomplete for track parameter - only shows joined tracks."""
-        tracks = await self.cli.get_joined_tracks()
-        if not tracks:
-            return []
-        current_lower = current.lower()
-        matching = [
-            track
-            for track in tracks
-            if current_lower in track.lower()
-        ]
-        return [
-            app_commands.Choice(name=track.title(), value=track)
-            for track in sorted(matching)[:25]
-        ]
 
     @app_commands.command(
         name="daily", description="Get today's recommended coding problem"
