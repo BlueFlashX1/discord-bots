@@ -1,209 +1,384 @@
-"""Reminder service for checking and sending reminders."""
+"""Reminder service for managing reminders."""
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
-from typing import Optional
-
-from dateutil import parser
-from dateutil.relativedelta import relativedelta
-from discord.ext import tasks
-from utils.data_manager import DataManager
-from utils.retry import retry_discord_api
-
 import discord
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any
+from discord.ext import commands
 
 logger = logging.getLogger(__name__)
 
 
 class ReminderService:
-    """Service that checks for due reminders and sends notifications."""
+    """Service for managing and sending reminders."""
 
-    def __init__(self, bot: discord.Client, data_manager: DataManager):
+    def __init__(self, bot: commands.Bot, data_manager):
         self.bot = bot
         self.data = data_manager
-        self.checker_task = None
+        self._running = False
+        self._task = None
 
     def start(self):
-        """Start checking reminders."""
-        if not self.checker_task or self.checker_task.done():
-            self.checker_task = self.check_reminders.start()
-            logger.info("Reminder checker task started")
+        """Start the reminder checker."""
+        if not self._running:
+            self._running = True
+            self._task = asyncio.create_task(self._check_reminders())
+            logger.info("Reminder service started")
 
     def stop(self):
-        """Stop checking reminders."""
-        if self.checker_task and not self.checker_task.done():
-            self.checker_task.cancel()
-            logger.info("Reminder checker task stopped")
+        """Stop the reminder checker."""
+        if self._running:
+            self._running = False
+            if self._task:
+                self._task.cancel()
+            logger.info("Reminder service stopped")
 
-    def _parse_time_input(self, time_str: str) -> Optional[datetime]:
-        """Parse various time input formats."""
-        if not time_str or not isinstance(time_str, str):
-            return None
-        
-        try:
-            # Handle relative times like "30m", "2h", "1d"
-            time_str = time_str.lower().strip()
-            
-            if not time_str:
-                return None
+    async def create_reminder(self, reminder_data: Dict[str, Any]) -> str:
+        """Create a new reminder."""
+        # Convert datetime to string if needed
+        time_value = reminder_data["time"]
+        if isinstance(time_value, datetime):
+            time_value = time_value.isoformat()
 
-            if time_str.endswith("m"):
-                minutes = int(time_str[:-1])
-                if minutes < 0:
-                    return None
-                return datetime.utcnow() + timedelta(minutes=minutes)
-            elif time_str.endswith("h"):
-                hours = int(time_str[:-1])
-                if hours < 0:
-                    return None
-                return datetime.utcnow() + timedelta(hours=hours)
-            elif time_str.endswith("d"):
-                days = int(time_str[:-1])
-                if days < 0:
-                    return None
-                return datetime.utcnow() + timedelta(days=days)
-            elif time_str.endswith("w"):
-                weeks = int(time_str[:-1])
-                if weeks < 0:
-                    return None
-                return datetime.utcnow() + timedelta(weeks=weeks)
+        reminder_id = self.data.add_reminder(
+            user_id=int(reminder_data["user_id"]),
+            message=reminder_data["message"],
+            remind_at=time_value,
+            channel_id=int(reminder_data["channel_id"])
+            if reminder_data.get("channel_id")
+            else None,
+            recurring=reminder_data.get("recurring"),
+            notes=reminder_data.get("notes"),
+        )
+        return str(reminder_id)
 
-            # Try parsing as ISO format or natural language
-            return parser.parse(time_str, default=datetime.utcnow())
-        except (ValueError, TypeError, AttributeError) as e:
-            logger.debug(f"Time parsing failed for '{time_str}': {e}")
-            return None
-
-    def _get_next_recurrence(self, remind_at: str, recurring: str) -> Optional[str]:
-        """Calculate next occurrence for recurring reminder."""
-        if not remind_at or not recurring:
-            return None
-        
-        try:
-            dt = parser.parse(remind_at)
-            if recurring == "daily":
-                next_dt = dt + timedelta(days=1)
-            elif recurring == "weekly":
-                next_dt = dt + timedelta(weeks=1)
-            elif recurring == "monthly":
-                next_dt = dt + relativedelta(months=1)
-            elif recurring == "yearly":
-                next_dt = dt + relativedelta(years=1)
-            else:
-                return None
-            return next_dt.isoformat()
-        except (ValueError, TypeError, AttributeError) as e:
-            logger.warning(f"Recurrence calculation failed for '{remind_at}' ({recurring}): {e}")
-            return None
-
-    @tasks.loop(seconds=30)
-    async def check_reminders(self):
-        """Check for due reminders and send notifications."""
-        current_time = datetime.utcnow().isoformat()
-        due_reminders = self.data.get_due_reminders(current_time)
-
-        for reminder in due_reminders:
+    async def _check_reminders(self):
+        """Check for due reminders and send them."""
+        while self._running:
             try:
-                user_id = reminder.get("user_id")
-                message = reminder.get("message", "Reminder!")
-                channel_id = reminder.get("channel_id")
-                reminder_id = reminder.get("id")
-                recurring = reminder.get("recurring")
-                notes = reminder.get("notes")
+                # Get all reminders
+                reminders = self.data.get_all_reminders()
+                now = datetime.utcnow()
 
-                # Validate reminder data
-                if not user_id or not reminder_id:
-                    logger.warning(f"Skipping invalid reminder: missing user_id or id")
-                    continue
-
-                # Get user
-                user = self.bot.get_user(user_id)
-                if not user:
-                    logger.debug(f"User {user_id} not found, skipping reminder {reminder_id}")
-                    continue
-
-                # Type narrowing: user is guaranteed to be discord.User after None check
-                # Store in local variable for lambda capture (Pyright type narrowing)
-                user_obj: discord.User = user
-                
-                # Get user mention safely
-                user_mention = getattr(user_obj, 'mention', f"<@{user_id}>")
-
-                # Send reminder
-                reminder_text = f"⏰ **Reminder:** {message}"
-                if notes:
-                    reminder_text += f"\n📝 **Notes:** {notes}"
-
-                if channel_id:
-                    # Send to channel if specified
+                for reminder in reminders:
                     try:
-                        channel = self.bot.get_channel(channel_id)
-                        # Check if channel exists and is Messageable (has send method)
-                        # Use isinstance check for type safety
-                        if channel and isinstance(channel, discord.abc.Messageable):
-                            # Use retry logic for channel send
-                            # Store channel in local variable for lambda capture
-                            channel_obj: discord.abc.Messageable = channel
-                            sent = await retry_discord_api(
-                                lambda: channel_obj.send(f"{user_mention} {reminder_text}"),
-                                operation_name=f"Send reminder to channel {channel_id}"
-                            )
-                            if not sent:
-                                # Fallback to DM if channel send failed
-                                logger.debug(f"Channel send failed, falling back to DM for user {user_id}")
-                                await retry_discord_api(
-                                    lambda: user_obj.send(reminder_text),
-                                    operation_name=f"Send reminder DM to user {user_id}"
+                        # Parse reminder time
+                        remind_at = datetime.fromisoformat(reminder["remind_at"])
+
+                        if remind_at <= now:
+                            await self._send_reminder(reminder)
+
+                            # Handle recurring reminders
+                            if reminder.get("recurring"):
+                                next_time = self._get_next_recurring_time(
+                                    remind_at, reminder["recurring"]
                                 )
-                        else:
-                            # Channel not found or not sendable, send DM
-                            logger.debug(f"Channel {channel_id} not found or not sendable, sending DM to user {user_id}")
-                            await retry_discord_api(
-                                lambda: user_obj.send(reminder_text),
-                                operation_name=f"Send reminder DM to user {user_id}"
-                            )
+                                reminder["remind_at"] = next_time.isoformat()
+                                self.data.update_reminder(reminder)
+                            else:
+                                # Delete one-time reminder
+                                self.data.delete_reminder(reminder["id"])
+
                     except Exception as e:
-                        logger.warning(f"Error accessing channel {channel_id}: {e}, sending DM instead")
-                        await retry_discord_api(
-                            lambda: user_obj.send(reminder_text),
-                            operation_name=f"Send reminder DM to user {user_id}"
+                        logger.error(
+                            f"Error processing reminder {reminder.get('id')}: {e}"
                         )
-                else:
-                    # Send DM
-                    sent = await retry_discord_api(
-                        lambda: user_obj.send(reminder_text),
-                        operation_name=f"Send reminder DM to user {user_id}"
-                    )
-                    if not sent:
-                        logger.warning(f"Failed to send reminder DM to user {user_id}")
 
-                # Handle recurring reminders
-                if recurring:
-                    remind_at = reminder.get("remind_at")
-                    # Only process if remind_at is not None
-                    if remind_at is not None:
-                        next_time = self._get_next_recurrence(remind_at, recurring)
-                        if next_time:
-                            self.data.update_reminder_time(reminder_id, next_time)
-                        else:
-                            # Invalid recurring format, remove reminder
-                            self.data.remove_reminder(reminder_id, user_id)
-                    else:
-                        # Missing remind_at, remove reminder
-                        logger.warning(f"Reminder {reminder_id} has recurring but no remind_at, removing")
-                        self.data.remove_reminder(reminder_id, user_id)
-                else:
-                    # One-time reminder, remove it
-                    self.data.remove_reminder(reminder_id, user_id)
+                # Sleep for 30 seconds before next check
+                await asyncio.sleep(30)
 
-                # Rate limiting
-                await asyncio.sleep(1)
-
+            except asyncio.CancelledError:
+                break
             except Exception as e:
-                logger.error(f"Error processing reminder {reminder.get('id')}: {e}", exc_info=True)
+                logger.error(f"Error in reminder checker: {e}")
+                await asyncio.sleep(60)  # Wait longer if there's an error
 
-    @check_reminders.before_loop
-    async def before_check_reminders(self):
-        """Wait until bot is ready."""
-        await self.bot.wait_until_ready()
+    async def _send_reminder(self, reminder: Dict[str, Any]):
+        """Send a reminder to the appropriate channel/user."""
+        try:
+            user_id = int(reminder["user_id"])
+            user = self.bot.get_user(user_id)
+
+            if not user:
+                logger.warning(
+                    f"User {user_id} not found for reminder {reminder['id']}"
+                )
+                return
+
+            # Create embed for reminder
+            from utils.embeds import create_reminder_embed
+
+            embed = create_reminder_embed(
+                reminder_id=reminder["id"],
+                message=reminder["message"],
+                remind_at=reminder["remind_at"],
+                recurring=reminder.get("recurring"),
+                notes=reminder.get("notes"),
+            )
+            embed.title = "⏰ Reminder!"
+            embed.color = discord.Color.blue()
+
+            # Try to send to channel first, then DM
+            channel_id = reminder.get("channel_id")
+            if channel_id:
+                channel = self.bot.get_channel(int(channel_id))
+                if channel and isinstance(channel, discord.TextChannel):
+                    try:
+                        await channel.send(f"{user.mention}", embed=embed)
+                        logger.info(
+                            f"Sent reminder {reminder['id']} to channel {channel_id}"
+                        )
+                        return
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to send reminder {reminder['id']} to channel: {e}"
+                        )
+                        return
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to send reminder {reminder['id']} to channel: {e}"
+                        )
+
+            # Fallback to DM
+            try:
+                await user.send(embed=embed)
+                logger.info(f"Sent reminder {reminder['id']} via DM to user {user_id}")
+            except Exception as dm_e:
+                logger.error(f"Failed to send reminder {reminder['id']} via DM: {dm_e}")
+
+        except Exception as e:
+            logger.error(f"Failed to send reminder {reminder.get('id')}: {e}")
+
+    def _get_next_recurring_time(
+        self, current_time: datetime, recurring: str
+    ) -> datetime:
+        """Calculate the next time for a recurring reminder."""
+        if recurring.startswith("daily"):
+            return current_time + timedelta(days=1)
+        elif recurring.startswith("weekly"):
+            # Parse specific days: "weekly on monday,wednesday,friday at 2pm"
+            if " on " in recurring:
+                days_part = recurring.split(" on ")[1].split(" at ")[0]
+                days = [d.strip().lower() for d in days_part.split(",")]
+                return self._get_next_weekday_time(current_time, days)
+            else:
+                return current_time + timedelta(weeks=1)
+        elif recurring.startswith("monthly"):
+            # Parse different monthly patterns
+            return self._parse_monthly_recurring(current_time, recurring)
+        else:
+            # Default to daily if unknown
+            return current_time + timedelta(days=1)
+
+    def _parse_monthly_recurring(
+        self, current_time: datetime, recurring: str
+    ) -> datetime:
+        """Parse monthly recurring patterns."""
+        # Pattern: "monthly on 15th at 10am"
+        if " on " in recurring and "th" in recurring:
+            day_part = recurring.split(" on ")[1].split(" at ")[0]
+            try:
+                day = int(
+                    day_part.replace("st", "")
+                    .replace("nd", "")
+                    .replace("rd", "")
+                    .replace("th", "")
+                )
+                return self._get_next_monthly_time(current_time, day)
+            except ValueError:
+                pass
+
+        # Pattern: "monthly on first monday at 10am"
+        if " on " in recurring and any(
+            week in recurring.lower()
+            for week in [
+                "monday",
+                "tuesday",
+                "wednesday",
+                "thursday",
+                "friday",
+                "saturday",
+                "sunday",
+            ]
+        ):
+            return self._parse_monthly_weekday_pattern(current_time, recurring)
+
+        # Pattern: "monthly on last friday at 2pm"
+        if " on " in recurring and "last" in recurring.lower():
+            return self._parse_monthly_last_pattern(current_time, recurring)
+
+        # Default to same day next month
+        return current_time + timedelta(days=30)
+
+    def _parse_monthly_weekday_pattern(
+        self, current_time: datetime, recurring: str
+    ) -> datetime:
+        """Parse patterns like 'first monday', 'second tuesday', etc."""
+        import re
+
+        # Extract the pattern: "monthly on first monday at 10am"
+        pattern_match = re.search(
+            r"on (first|second|third|fourth|fifth) (\w+) at", recurring.lower()
+        )
+        if pattern_match:
+            ordinal, weekday = pattern_match.groups()
+            week_num = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5}[
+                ordinal
+            ]
+
+            day_mapping = {
+                "monday": 0,
+                "tuesday": 1,
+                "wednesday": 2,
+                "thursday": 3,
+                "friday": 4,
+                "saturday": 5,
+                "sunday": 6,
+            }
+
+            target_weekday = day_mapping.get(weekday)
+            if target_weekday is not None:
+                return self._get_next_monthly_weekday_time(
+                    current_time, target_weekday, week_num
+                )
+
+        return current_time + timedelta(days=30)
+
+    def _parse_monthly_last_pattern(
+        self, current_time: datetime, recurring: str
+    ) -> datetime:
+        """Parse patterns like 'last friday', 'last tuesday', etc."""
+        import re
+
+        # Extract the pattern: "monthly on last friday at 2pm"
+        pattern_match = re.search(r"on last (\w+) at", recurring.lower())
+        if pattern_match:
+            weekday = pattern_match.group(1)
+
+            day_mapping = {
+                "monday": 0,
+                "tuesday": 1,
+                "wednesday": 2,
+                "thursday": 3,
+                "friday": 4,
+                "saturday": 5,
+                "sunday": 6,
+            }
+
+            target_weekday = day_mapping.get(weekday)
+            if target_weekday is not None:
+                return self._get_next_monthly_last_weekday_time(
+                    current_time, target_weekday
+                )
+
+        return current_time + timedelta(days=30)
+
+    def _get_next_monthly_weekday_time(
+        self, current_time: datetime, target_weekday: int, week_num: int
+    ) -> datetime:
+        """Get next occurrence of Nth weekday of month (e.g., 3rd Monday)."""
+        # Move to next month
+        next_month = current_time.replace(day=1)
+        if next_month.month == 12:
+            next_month = next_month.replace(year=next_month.year + 1, month=1)
+        else:
+            next_month = next_month.replace(month=next_month.month + 1)
+
+        # Find the Nth occurrence of the target weekday
+        weekday_count = 0
+        for day in range(1, 32):
+            try:
+                test_date = next_month.replace(day=day)
+                if test_date.weekday() == target_weekday:
+                    weekday_count += 1
+                    if weekday_count == week_num:
+                        return test_date.replace(
+                            hour=current_time.hour,
+                            minute=current_time.minute,
+                            second=0,
+                            microsecond=0,
+                        )
+            except ValueError:
+                break  # Invalid day (e.g., February 30)
+
+        # If not found, go to next month
+        return self._get_next_monthly_weekday_time(next_month, target_weekday, week_num)
+
+    def _get_next_monthly_last_weekday_time(
+        self, current_time: datetime, target_weekday: int
+    ) -> datetime:
+        """Get next occurrence of last weekday of month (e.g., last Friday)."""
+        # Move to next month
+        next_month = current_time.replace(day=1)
+        if next_month.month == 12:
+            next_month = next_month.replace(year=next_month.year + 1, month=1)
+        else:
+            next_month = next_month.replace(month=next_month.month + 1)
+
+        # Find the last occurrence of the target weekday
+        last_occurrence = None
+        for day in range(1, 32):
+            try:
+                test_date = next_month.replace(day=day)
+                if test_date.weekday() == target_weekday:
+                    last_occurrence = test_date
+            except ValueError:
+                break  # Invalid day (e.g., February 30)
+
+        if last_occurrence:
+            return last_occurrence.replace(
+                hour=current_time.hour,
+                minute=current_time.minute,
+                second=0,
+                microsecond=0,
+            )
+
+        # Fallback
+        return next_month + timedelta(days=30)
+
+    def _get_next_weekday_time(
+        self, current_time: datetime, days: List[str]
+    ) -> datetime:
+        """Get next occurrence for specific weekdays."""
+        day_mapping = {
+            "monday": 0,
+            "tuesday": 1,
+            "wednesday": 2,
+            "thursday": 3,
+            "friday": 4,
+            "saturday": 5,
+            "sunday": 6,
+        }
+
+        target_days = [day_mapping[d] for d in days if d in day_mapping]
+        if not target_days:
+            return current_time + timedelta(weeks=1)  # Fallback
+
+        current_day = current_time.weekday()
+        days_ahead = min((day - current_day) % 7 for day in target_days)
+        if days_ahead == 0:
+            days_ahead = 7  # Next week if today
+
+        return current_time + timedelta(days=days_ahead)
+
+    def _get_next_monthly_time(self, current_time: datetime, day: int) -> datetime:
+        """Get next occurrence for specific day of month."""
+        next_month = current_time.replace(day=1)
+        if next_month.month == 12:
+            next_month = next_month.replace(year=next_month.year + 1, month=1)
+        else:
+            next_month = next_month.replace(month=next_month.month + 1)
+
+        # Handle cases where day doesn't exist (e.g., February 30)
+        max_day = (
+            next_month.replace(
+                month=next_month.month + 1 if next_month.month < 12 else 1,
+                year=next_month.year + 1 if next_month.month == 12 else next_month.year,
+                day=1,
+            )
+            - timedelta(days=1)
+        ).day
+
+        target_day = min(day, max_day)
+        return next_month.replace(day=target_day)

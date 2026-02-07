@@ -37,6 +37,11 @@ class DataManager:
         """Get all reminders."""
         return self._load_json(self.reminders_file, {})
 
+    def get_all_reminders(self) -> List[Dict]:
+        """Get all reminders as a list."""
+        all_reminders = self.get_reminders()
+        return list(all_reminders.values())
+
     def get_user_reminders(self, user_id: int) -> List[Dict]:
         """Get all reminders for a user."""
         all_reminders = self.get_reminders()
@@ -119,11 +124,25 @@ class DataManager:
                 due.append(reminder)
         return due
 
+    def update_reminder(self, reminder: Dict):
+        """Update a reminder (for recurring reminders)."""
+        reminders = self.get_reminders()
+        if reminder["id"] in reminders:
+            reminders[reminder["id"]] = reminder
+            self._save_json(self.reminders_file, reminders)
+
     def update_reminder_time(self, reminder_id: str, new_time: str):
         """Update reminder time (for recurring reminders)."""
         reminders = self.get_reminders()
         if reminder_id in reminders:
             reminders[reminder_id]["remind_at"] = new_time
+            self._save_json(self.reminders_file, reminders)
+
+    def delete_reminder(self, reminder_id: str):
+        """Delete a reminder by ID."""
+        reminders = self.get_reminders()
+        if reminder_id in reminders:
+            del reminders[reminder_id]
             self._save_json(self.reminders_file, reminders)
 
     # Configuration (Guild settings)

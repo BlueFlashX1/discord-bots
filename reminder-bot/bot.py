@@ -1,4 +1,4 @@
-"""Main Reminder Discord Bot."""
+"""Simple Reminder Discord Bot."""
 
 import asyncio
 import logging
@@ -14,12 +14,14 @@ from utils.data_manager import DataManager
 
 import discord
 
-from logging_utils.python_logging import init_logging
-
 # Load environment variables
 load_dotenv()
 
-RUN_ID = init_logging("reminder-bot")
+RUN_ID = "reminder-bot"
+
+# Simple logging setup
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Suppress discord.py verbose logging
 logging.getLogger("discord").setLevel(logging.WARNING)
@@ -27,8 +29,6 @@ logging.getLogger("discord.http").setLevel(logging.WARNING)
 logging.getLogger("discord.gateway").setLevel(logging.WARNING)
 # Suppress aiohttp unclosed connector warnings
 logging.getLogger("aiohttp").setLevel(logging.ERROR)
-
-logger = logging.getLogger(__name__)
 
 # Bot configuration
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
@@ -53,7 +53,7 @@ if CLIENT_ID_STR:
 
 
 class ReminderBot(commands.Bot):
-    """Reminder Discord Bot."""
+    """Simple Reminder Discord Bot."""
 
     def __init__(self):
         intents = discord.Intents.default()
@@ -71,6 +71,10 @@ class ReminderBot(commands.Bot):
 
     async def setup_hook(self):
         """Called when the bot is starting up."""
+        # Create data directory
+        data_dir = Path("data")
+        data_dir.mkdir(exist_ok=True)
+
         # Load all command cogs
         cogs_dir = Path("commands")
         for file in cogs_dir.glob("*.py"):
@@ -78,6 +82,7 @@ class ReminderBot(commands.Bot):
                 try:
                     cog_name = f"commands.{file.stem}"
                     await self.load_extension(cog_name)
+                    logger.info(f"Loaded cog: {file.stem}")
                 except Exception as e:
                     logger.error(f"Failed to load cog {file.stem}: {e}")
 
@@ -100,7 +105,7 @@ class ReminderBot(commands.Bot):
     async def close(self):
         """Clean up resources when bot is closing."""
         try:
-            if hasattr(self, 'reminder_service'):
+            if hasattr(self, "reminder_service"):
                 self.reminder_service.stop()
         except Exception as e:
             logger.error(f"Error stopping reminder service: {e}")
@@ -121,7 +126,7 @@ async def main():
     if not token:
         logger.error("DISCORD_TOKEN not found in environment variables")
         sys.exit(1)
-    
+
     bot = ReminderBot()
     await bot.start(token)
 

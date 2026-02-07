@@ -48,6 +48,8 @@ jobs:
               cp ecosystem.config.example.js ecosystem.config.js
               log "Created ecosystem.config.js from example (first deploy)"
             fi
+            log "Step: merge example into ecosystem (add any missing apps, keep VPS customizations)"
+            node scripts/merge-ecosystem.js || { log "WARN: merge-ecosystem.js failed, continuing with current config"; }
 
             log "Step: npm install"
             # Update dependencies for each bot

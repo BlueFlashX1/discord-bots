@@ -60,7 +60,7 @@ export default {
       'rm', 'mv', 'cp', 'chmod', 'chown', 'mkdir', 'touch', 'sed', 'awk',
       'git push', 'git commit', 'npm publish', 'npm install'
     ],
-    // Never allow these
+    // Never allow these (raw/ad-hoc commands). Allowlisted automations (e.g. mac_control.js) are exempt and run their own fixed actions.
     blocked: [
       'sudo', 'su', 'doas', 'pkexec',
       'curl | bash', 'curl | sh', 'wget | bash', 'wget | sh',
@@ -129,6 +129,10 @@ export default {
       'generate_digest.js',
       'generate_journal.js',
       'query_memory.js',
+      // Mac-only: open/quit apps, lock/sleep/mute, list_laggy, kill_pid (allowlisted actions only; always requires confirmation)
+      'mac_control.js',
+      // VPS PM2 Management: list, restart, deploy bots via SSH (always requires confirmation)
+      'pm2_control.js',
       // 'backup.sh',
       // 'deploy.sh',
       // 'daily-report.js',
@@ -137,7 +141,9 @@ export default {
     // Directory where automations live
     scriptsDir: `${AUTOMATIONS_DIR}/scripts`,
     // Require explicit confirmation before running ANY automation
-    requireConfirmation: false
+    requireConfirmation: false,
+    // These scripts ALWAYS require user "yes" before running (e.g. Mac control)
+    alwaysConfirmScripts: ['mac_control.js', 'pm2_control.js']
   },
   auth: {
     allowedUserIds: (process.env.ALLOWED_USER_IDS || '').split(',').filter(Boolean),

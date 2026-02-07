@@ -158,6 +158,24 @@ If you skip `export VPS_HOST`, the script will prompt for it.
 
 The script copies `ecosystem.config.js` and backend `config.ts` to the VPS, rebuilds backend-api (main + schedule-emitter), and reloads `monitorss-schedule-emitter`. After a sync that changes which apps are in the config, run a full reload on the VPS if needed (e.g. `pm2 reload ecosystem.config.js && pm2 save`).
 
+### AI agents: do not break (ecosystem + MonitoRSS + MoltBot)
+
+**Do not overwrite local `ecosystem.config.js` with the VPS copy.** The repo keeps one ecosystem file that serves both environments:
+
+- **Local (Mac):** MoltBot uses **Mac paths** (e.g. `/Users/matthewthompson/Documents/DEVELOPMENT/discord/bots/moltbot`). Changing these to VPS paths breaks local PM2.
+- **VPS:** When syncing to the VPS, either (1) use a merge/template step that substitutes VPS paths for MoltBot, or (2) after copying, edit only the MoltBot block on the VPS to use `/root/discord-bots/moltbot`. Do not pull the full VPS ecosystem back over the local file.
+
+**MonitoRSS “no channels” fix (do not remove):** The `monitorss-monolith` app in `ecosystem.config.js` must have:
+
+- `node_args: '-r dotenv/config'`
+- In `env`: `dotenv_config_path` and `DOTENV_CONFIG_PATH` pointing to `MonitoRSS/.env`
+
+So the bot token is in `process.env` before Nest starts. **Applying this requires recreating the process, not just restart:** `pm2 delete monitorss-monolith && pm2 start ecosystem.config.js --only monitorss-monolith && pm2 save`. See `news-bots/MonitoRSS/docs/NO-CHANNELS-BOT-TOKEN-FIX.md`.
+
+**MoltBot on VPS:** The VPS `.env` for MoltBot must **not** contain `MOLTBOT_DIR` or `AUTOMATIONS_DIR` set to Mac paths (e.g. `/Users/...`). Leave them unset so the code uses the Linux default `/root/discord-bots/moltbot` and `.../moltbot/automations`. If those vars were copied from Mac, remove them on the VPS and restart MoltBot.
+
+**Do not sync `.env` or `.env.prod` from VPS to local** (secrets). Sync code and docs only.
+
 ## 🚀 Getting Started
 
 ### Prerequisites

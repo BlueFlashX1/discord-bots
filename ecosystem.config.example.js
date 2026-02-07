@@ -1,11 +1,36 @@
 // PM2 Ecosystem Configuration for Discord Bots
 // Copy to ecosystem.config.js and adjust DEPLOY_ROOT if needed.
 // Set DEPLOY_ROOT env var or change default below (e.g. /root/discord-bots).
+//
+// Apps in this file: moltbot, coding-practice-bot, subscription-tracker, grammar-bot,
+// todoist-bot, reddit-filter-bot, youtube-monitor-bot, github-bot, reminder-bot,
+// starboard-bot, exercism-bot, monitorss-monolith, monitorss-bot-presence,
+// monitorss-discord-rest-listener, monitorss-feed-requests, monitorss-user-feeds,
+// monitorss-schedule-emitter.
+// Local-only (do not add to VPS): command-control-bot, subscription-bot.
 
 const ROOT = process.env.DEPLOY_ROOT || '/root/discord-bots';
 
 module.exports = {
   apps: [
+    {
+      name: 'moltbot',
+      script: 'src/index.js',
+      cwd: `${ROOT}/moltbot`,
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '512M',
+      env_file: `${ROOT}/moltbot/.env`,
+      env: {
+        NODE_ENV: 'production',
+      },
+      error_file: `${ROOT}/logs/moltbot-error.log`,
+      out_file: `${ROOT}/logs/moltbot-out.log`,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      merge_logs: true,
+    },
     {
       name: 'coding-practice-bot',
       script: 'index.js',
@@ -195,6 +220,7 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '1G',
+      node_args: '-r dotenv/config',
       env: {
         NODE_ENV: 'production',
         BACKEND_API_NODE_ENV: 'local',
@@ -208,6 +234,7 @@ module.exports = {
         BACKEND_API_USER_FEEDS_API_KEY: 'user-feeds-api-key',
         BACKEND_API_FEED_REQUESTS_API_KEY: 'feed-requests-api-key',
         LOG_LEVEL: 'info',
+        dotenv_config_path: `${ROOT}/news-bots/MonitoRSS/.env`,
         DOTENV_CONFIG_PATH: `${ROOT}/news-bots/MonitoRSS/.env`,
       },
       error_file: `${ROOT}/logs/monitorss-monolith-error.log`,
