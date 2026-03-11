@@ -17,6 +17,7 @@ function parseCsvSet(input) {
 }
 
 function buildInitialProfile(config = {}) {
+  const defaultReplyMode = process.env.OPENAI_API_KEY ? 'ai' : 'static';
   return {
     targetUserId: config.targetUserId || '',
     ownerUserIds: parseCsvSet(config.ownerUserIds),
@@ -30,7 +31,7 @@ function buildInitialProfile(config = {}) {
     maxRepliesPerGuildPerHour: 12,
     maxRepliesPerChannelPerHour: 6,
     maxRepliesGlobalPerHour: 40,
-    replyMode: 'static',
+    replyMode: defaultReplyMode,
     updatedAt: nowIso(),
   };
 }
@@ -110,13 +111,14 @@ class StateStore {
 
   _ensureProfileDefaults() {
     const profile = this.state.profile;
+    const defaultReplyMode = process.env.OPENAI_API_KEY ? 'ai' : 'static';
     if (!Array.isArray(profile.ownerUserIds)) profile.ownerUserIds = [];
     if (!Array.isArray(profile.deployedGuildIds)) profile.deployedGuildIds = [];
     if (!Array.isArray(profile.allowGuildIds)) profile.allowGuildIds = [];
     if (!Array.isArray(profile.allowChannelIds)) profile.allowChannelIds = [];
     if (typeof profile.cooldownSeconds !== 'number') profile.cooldownSeconds = 60;
     if (!profile.signatureMarker) profile.signatureMarker = '[SHADOW-AUTO-REPLY]';
-    if (!profile.replyMode) profile.replyMode = 'static';
+    if (!profile.replyMode) profile.replyMode = defaultReplyMode;
     if (!profile.updatedAt) profile.updatedAt = nowIso();
   }
 

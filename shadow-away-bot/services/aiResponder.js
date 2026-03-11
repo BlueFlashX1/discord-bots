@@ -37,6 +37,8 @@ class ShadowAwayAIResponder {
       'You rephrase a status clause for a loyal shadow-servant tone.',
       'Keep the original meaning intact.',
       'Do not add promises, schedules, or new facts.',
+      'Use slight natural variation so repeated replies do not feel robotic.',
+      'Address should feel like a shadow speaking on behalf of the Shadow Monarch.',
       'No emojis, no markdown, no quotes.',
       'Keep concise (max 22 words).',
       'Output JSON only: {"clause":"..."}',
@@ -54,7 +56,7 @@ class ShadowAwayAIResponder {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      temperature: 0.4,
+      temperature: 0.7,
       max_tokens: 80,
       response_format: { type: 'json_object' },
     });
@@ -81,4 +83,3 @@ class ShadowAwayAIResponder {
 module.exports = {
   ShadowAwayAIResponder,
 };
-
