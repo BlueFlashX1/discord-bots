@@ -44,6 +44,7 @@ module.exports = {
     )
     .addSubcommand((sub) => sub.setName('off').setDescription('Disable away mode'))
     .addSubcommand((sub) => sub.setName('status').setDescription('Show current shadow away configuration'))
+    .addSubcommand((sub) => sub.setName('enabled').setDescription('Show whether away mode is enabled'))
     .addSubcommand((sub) =>
       sub
         .setName('set')
@@ -135,6 +136,40 @@ module.exports = {
       const aiSuffix = `\nAI Available: **${service.isAiAvailable() ? 'yes' : 'no'}**`;
       return replyEphemeral(interaction, {
         embeds: [createEmbed('Shadow Away Status', `${describeProfile(profile, pending.pendingCount)}${aiSuffix}`, 0x6f42c1)],
+      });
+    }
+
+    if (sub === 'enabled') {
+      const profile = service.getProfile();
+      const pending = service.getPendingSummary();
+      const updatedMs = Date.parse(profile.updatedAt || '');
+      const updatedLine = Number.isFinite(updatedMs)
+        ? `<t:${Math.floor(updatedMs / 1000)}:R>`
+        : 'unknown';
+      const awayMeta = service.getAwayDurationMeta(profile);
+      const stateWord = profile.enabled ? 'ENABLED' : 'DISABLED';
+      const color = profile.enabled ? 0x6f42c1 : 0x8b8b96;
+      const contextLine = `Context: ${profile.statusTemplate}`;
+      const awaySinceLine = awayMeta
+        ? `Away Since: <t:${Math.floor(awayMeta.awaySinceMs / 1000)}:F> (<t:${Math.floor(awayMeta.awaySinceMs / 1000)}:R>)`
+        : 'Away Since: not active';
+      const awayDurationLine = awayMeta ? `Away Duration: **${awayMeta.awayForText}**` : null;
+      const detailLines = [
+        `Away Mode: **${stateWord}**`,
+        contextLine,
+        awaySinceLine,
+        awayDurationLine,
+        `Pending Mentions: **${pending.pendingCount}**`,
+        `Last Updated: ${updatedLine}`,
+      ].filter(Boolean);
+      return replyEphemeral(interaction, {
+        embeds: [
+          createEmbed(
+            'Shadow Away Enabled Check',
+            detailLines.join('\n'),
+            color
+          ),
+        ],
       });
     }
 

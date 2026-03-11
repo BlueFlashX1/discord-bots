@@ -37,6 +37,7 @@ class ShadowAwayService {
     return this.store.updateProfile((profile) => ({
       ...profile,
       enabled: true,
+      awayStartedAtMs: Date.now(),
       statusTemplate: nextStatus,
     }));
   }
@@ -44,7 +45,10 @@ class ShadowAwayService {
   setAwayOff() {
     return this.store.mutate((st) => {
       st.profile.enabled = false;
+      st.profile.awayStartedAtMs = null;
       st.profile.updatedAt = new Date().toISOString();
+      st.pendingMentions = [];
+      st.deliveryPrompts = {};
     }).profile;
   }
 
@@ -125,7 +129,13 @@ class ShadowAwayService {
       statusClause = await this.aiResponder.rephraseStatusClause(profile.statusTemplate, sourceMessageText);
     }
 
-    return `<@${triggerUserId}>, your message is noted. My liege ${statusClause}
+    const awayMeta = this.getAwayDurationMeta(profile);
+    const awayLine = awayMeta
+      ? `My liege ${statusClause} (away for ${awayMeta.awayForText}).`
+      : `My liege ${statusClause}`;
+
+    return `<@${triggerUserId}>, your message is noted.
+${awayLine}
 If you want to leave a message for my liege, reply to this shadow message and I will deliver it upon return.
 ${profile.signatureMarker}`;
   }
@@ -406,6 +416,7 @@ ${profile.signatureMarker}`;
 
     const plainText = (message.content || '').trim();
     if (!plainText) return false;
+    if (this._isCommandLikeText(plainText)) return false;
 
     const scope = this.evaluateScope(message.guild.id, message.channel.id);
     if (!scope.ok) return false;
@@ -440,6 +451,7 @@ ${profile.signatureMarker}`;
 
     this.store.mutate((st) => {
       st.profile.enabled = false;
+      st.profile.awayStartedAtMs = null;
       st.profile.updatedAt = now;
       st.pendingMentions = [];
       st.deliveryPrompts = {};
@@ -715,6 +727,68 @@ ${profile.signatureMarker}`;
     return limited || 'is currently away.';
   }
 
+  _readAwayStartedAtMs(profile) {
+    const awayStartedAtMs = Number(profile?.awayStartedAtMs || 0);
+    if (!Number.isFinite(awayStartedAtMs) || awayStartedAtMs <= 0) return null;
+    return Math.floor(awayStartedAtMs);
+  }
+
+  _formatDuration(ms) {
+    const totalSeconds = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
+    if (totalSeconds <= 0) return '0s';
+
+    const units = [
+      ['d', 86400],
+      ['h', 3600],
+      ['m', 60],
+      ['s', 1],
+    ];
+
+    let remaining = totalSeconds;
+    const parts = [];
+    for (const [label, unitSeconds] of units) {
+      if (remaining < unitSeconds) continue;
+      const count = Math.floor(remaining / unitSeconds);
+      remaining -= count * unitSeconds;
+      parts.push(`${count}${label}`);
+      if (parts.length >= 2) break;
+    }
+
+    return parts.length ? parts.join(' ') : '0s';
+  }
+
+  getAwayDurationMeta(profile = this.store.getProfile(), nowMs = Date.now()) {
+    if (!profile?.enabled) return null;
+    let awaySinceMs = this._readAwayStartedAtMs(profile);
+    if (!awaySinceMs) {
+      const fallbackUpdatedAtMs = Date.parse(String(profile.updatedAt || ''));
+      if (Number.isFinite(fallbackUpdatedAtMs) && fallbackUpdatedAtMs > 0) {
+        awaySinceMs = Math.floor(fallbackUpdatedAtMs);
+      }
+    }
+    if (!awaySinceMs) return null;
+
+    const awayForMs = Math.max(0, nowMs - awaySinceMs);
+    return {
+      awaySinceMs,
+      awayForMs,
+      awayForText: this._formatDuration(awayForMs),
+    };
+  }
+
+  _isCommandLikeText(input) {
+    const text = String(input || '').trim();
+    if (!text) return false;
+    if (text.startsWith('/')) return true;
+
+    const first = text[0];
+    if ((first === '!' || first === '.' || first === '?' || first === '$') && text.length > 1) {
+      return true;
+    }
+
+    return /^<@!?\d+>\s+\S+/.test(text);
+  }
+
   async validateChannelPermissions(channel) {
     if (!channel?.guild) {
       return { ok: false, missing: ['guild_only'] };
@@ -766,6 +840,7 @@ ${profile.signatureMarker}`;
       const status = this._sanitizeStatus(payload.statusText || payload.statusTemplate || 'is currently away.');
       this.store.updateProfile((profile) => ({
         enabled: true,
+        awayStartedAtMs: Date.now(),
         statusTemplate: status,
       }));
       return { ok: true, action: 'away_on' };

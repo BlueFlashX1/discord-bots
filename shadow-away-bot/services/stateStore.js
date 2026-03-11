@@ -23,6 +23,7 @@ function buildInitialProfile(config = {}) {
     ownerUserIds: parseCsvSet(config.ownerUserIds),
     deployedGuildIds: parseCsvSet(config.deployedGuildIds),
     enabled: false,
+    awayStartedAtMs: null,
     statusTemplate: 'is currently away.',
     allowGuildIds: [],
     allowChannelIds: [],
@@ -122,6 +123,10 @@ class StateStore {
     if (!profile.signatureMarker) profile.signatureMarker = '[SHADOW-AUTO-REPLY]';
     if (!profile.replyMode) profile.replyMode = defaultReplyMode;
     if (!profile.updatedAt) profile.updatedAt = nowIso();
+    const awayStartedAtMs = Number(profile.awayStartedAtMs);
+    profile.awayStartedAtMs = Number.isFinite(awayStartedAtMs) && awayStartedAtMs > 0
+      ? Math.floor(awayStartedAtMs)
+      : null;
   }
 
   _prune(nowMs) {

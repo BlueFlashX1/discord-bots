@@ -19,7 +19,7 @@ Owner-only Discord bot that replies when you are away and sends a return digest 
 
 ## Command
 Use `/shadowaway` with subcommands:
-- `on`, `off`, `status`, `set`, `back`
+- `on`, `off`, `enabled`, `status`, `set`, `back`
 - AI control: `ai mode` (`static` or `ai`)
 - Scope policy: if `deployedGuildIds` is configured, replies are restricted to those guild(s); channels are allowed by default.
 
