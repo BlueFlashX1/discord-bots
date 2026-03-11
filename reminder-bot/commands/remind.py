@@ -5,6 +5,7 @@ from discord.ext import commands
 from discord import app_commands
 from datetime import datetime, timedelta
 from dateutil import parser
+import pytz
 from typing import Optional
 from utils.data_manager import DataManager
 from utils.embeds import create_error_embed, create_reminder_embed
@@ -33,28 +34,120 @@ class RemindCommand(commands.Cog):
 
         try:
             time_str = time_str.lower().strip()
-            now = datetime.utcnow()
+
+            # Get user's local timezone (PST/PDT = UTC-7)
+            local_tz = pytz.timezone("America/Denver")
+            now = datetime.now(local_tz)
 
             # Handle relative times
             if time_str.endswith("m"):
-                minutes = int(time_str[:-1])
-                if minutes > 0:
-                    return now + timedelta(minutes=minutes)
+                minutes_str = time_str[:-1]
+                if minutes_str.isdigit():
+                    minutes = int(minutes_str)
+                    if minutes > 0:
+                        return now + timedelta(minutes=minutes)
             elif time_str.endswith("h"):
-                hours = int(time_str[:-1])
-                if hours > 0 and hours <= 23:
-                    return now + timedelta(hours=hours)
+                hours_str = time_str[:-1]
+                if hours_str.isdigit():
+                    hours = int(hours_str)
+                    if hours > 0 and hours <= 23:
+                        return now + timedelta(hours=hours)
             elif time_str.endswith("d"):
-                days = int(time_str[:-1])
-                if days > 0 and days <= 365:
-                    return now + timedelta(days=days)
+                days_str = time_str[:-1]
+                if days_str.isdigit():
+                    days = int(days_str)
+                    if days > 0 and days <= 365:
+                        return now + timedelta(days=days)
             elif time_str.endswith("w"):
-                weeks = int(time_str[:-1])
-                if weeks > 0 and weeks <= 52:
-                    return now + timedelta(weeks=weeks)
+                weeks_str = time_str[:-1]
+                if weeks_str.isdigit():
+                    weeks = int(weeks_str)
+                    if weeks > 0 and weeks <= 52:
+                        return now + timedelta(weeks=weeks)
 
-            return parser.parse(time_str, default=now)
-        except Exception:
+            # Simple time like "9am", "9pm", "9:30am", "9:30pm"
+            if "am" in time_str or "pm" in time_str:
+                # Extract hour and minutes
+                parts = time_str.replace("am", "").replace("pm", "").strip()
+                if ":" in parts:
+                    hour_str, minute_str = parts.split(":")
+                    hour = int(hour_str)
+                    minute = int(minute_str)
+                else:
+                    hour = int(parts)
+                    minute = 0
+
+                # Convert to 24-hour format
+                if "pm" in time_str:
+                    if hour == 12:  # 12 PM
+                        hour_24 = 12
+                    elif hour == 0:  # 0 PM (invalid)
+                        hour_24 = 12
+                    else:  # 1-11 PM
+                        hour_24 = hour + 12
+                else:  # AM
+                    if hour == 12:  # 12 AM
+                        hour_24 = 0
+                    elif hour == 0:  # 0 AM (invalid)
+                        hour_24 = 0
+                    else:  # 1-11 AM
+                        hour_24 = hour
+
+                return now.replace(hour=hour_24, minute=minute, second=0, microsecond=0)
+
+            # Handle time keywords
+            time_keywords = {
+                "morning": 8,
+                "noon": 12,
+                "afternoon": 15,
+                "evening": 18,
+                "night": 20,
+                "midnight": 0,
+            }
+
+            if time_str in time_keywords:
+                hour = time_keywords[time_str]
+                return now.replace(hour=hour, minute=0, second=0, microsecond=0)
+
+            # Handle tomorrow
+            if time_str.startswith("tomorrow"):
+                if len(time_str) > 8:  # tomorrow + time
+                    time_part = time_str[8:].strip()
+                    if "am" in time_part or "pm" in time_part:
+                        # Use the same logic as above for tomorrow times
+                        parts = time_part.replace("am", "").replace("pm", "").strip()
+                        if ":" in parts:
+                            hour_str, minute_str = parts.split(":")
+                            hour = int(hour_str)
+                            minute = int(minute_str)
+                        else:
+                            hour = int(parts)
+                            minute = 0
+
+                        if "pm" in time_part:
+                            if hour == 12:
+                                hour_24 = 12
+                            elif hour == 0:
+                                hour_24 = 12
+                            else:
+                                hour_24 = hour + 12
+                        else:
+                            if hour == 12:
+                                hour_24 = 0
+                            elif hour == 0:
+                                hour_24 = 0
+                            else:
+                                hour_24 = hour
+
+                        tomorrow = now + timedelta(days=1)
+                        return tomorrow.replace(
+                            hour=hour_24, minute=minute, second=0, microsecond=0
+                        )
+
+            # Try dateutil as final fallback
+            result = parser.parse(time_str, default=now)
+            return result
+        except Exception as e:
             return None
 
     def parse_recurring_input(self, recurring_str: str) -> Optional[str]:
@@ -110,12 +203,14 @@ class RemindCommand(commands.Cog):
         if not remind_at_dt:
             await ctx.send(
                 f"❌ Invalid time format: `{time}`\n"
-                "Use formats like: `30m`, `2h`, `1d`, `tomorrow 9am`, `2024-01-15 14:30`"
+                "Use formats like: `30m`, `2h`, `1d`, `tomorrow 9am`, or `9am`, `2pm`, `9pm`"
             )
             return
 
         # Make sure it's in the future
-        if remind_at_dt <= datetime.utcnow():
+        local_tz = pytz.timezone("America/Denver")
+        now = datetime.now(local_tz)
+        if remind_at_dt <= now:
             await ctx.send("❌ Reminder time must be in the future")
             return
 
@@ -135,11 +230,14 @@ class RemindCommand(commands.Cog):
             time_str = remind_at_dt.strftime("%I:%M%p").lower()
             recurring_pattern = recurring_pattern.format(time=time_str)
 
+        # Convert to UTC for storage (reminder_service uses UTC)
+        remind_at_utc = remind_at_dt.astimezone(pytz.UTC)
+
         # Create reminder data
         reminder_data = {
             "user_id": str(ctx.author.id),
             "message": message,
-            "time": remind_at_dt,
+            "time": remind_at_utc,
             "channel_id": str(ctx.channel.id),
             "recurring": recurring_pattern,
         }
@@ -162,44 +260,48 @@ class RemindCommand(commands.Cog):
     async def time_help(self, ctx):
         """Show help for time parsing."""
         help_text = """
-        🕐 **Enhanced Time Format Help**
-        
-        **Basic Time Formats:**
+        🕐 **Time Format Help**
+
+        **Basic Formats:**
         • `30m` - 30 minutes from now
-        • `2h` - 2 hours from now  
+        • `2h` - 2 hours from now
         • `1d` - 1 day from now
         • `1w` - 1 week from now
+
+        **Simple Times:**
+        • `9am` - Today at 9 AM (09:00)
+        • `2pm` - Today at 2 PM (14:00)
+        • `9pm` - Today at 9 PM (21:00)
+        • `11:30pm` - Today at 11:30 PM (23:30)
+
+        **Time Keywords:**
+        • `morning` - 8 AM
+        • `noon` - 12 PM
+        • `afternoon` - 3 PM
+        • `evening` - 6 PM
+        • `night` - 8 PM
+        • `midnight` - 12 AM
+
+        **Tomorrow:**
         • `tomorrow 9am` - Tomorrow at 9 AM
-        • `2024-01-15 14:30` - Specific date and time
-        
+        • `tomorrow 2pm` - Tomorrow at 2 PM
+
         **Recurring Formats:**
-        
+
         **Daily:**
-        • `daily` - Every day at the specified time
+        • `daily` - Every day
         • `daily at 9am` - Every day at 9 AM
-        
+
         **Weekly (Multi-select days):**
-        • `weekly` - Every week at the specified time
-        • `weekly on monday` - Every Monday
         • `weekly on monday,wednesday,friday` - Mon/Wed/Fri
         • `weekly on tuesday,thursday at 2pm` - Tue/Thu at 2 PM
-        • `weekly on saturday,sunday at 10am` - Weekends at 10 AM
-        
+
         **Monthly (Flexible patterns):**
-        • `monthly` - Every month on the same day
-        • `monthly on 15th at 10am` - Every 15th at 10 AM
-        • `monthly on 1st at 9am` - Every 1st at 9 AM
-        • `monthly on first monday at 2pm` - First Monday of each month
-        • `monthly on second tuesday at 3pm` - Second Tuesday of each month
-        • `monthly on third wednesday at 4pm` - Third Wednesday of each month
-        • `monthly on last friday at 5pm` - Last Friday of each month
-        • `monthly on last sunday at 6pm` - Last Sunday of each month
-        
+        • `monthly on first monday` - First Monday each month
+        • `monthly on last friday` - Last Friday each month
+
         **Examples:**
-        `!remind "Take medicine" daily at 8am`
         `!remind "Gym workout" weekly on monday,wednesday,friday at 6pm`
-        `!remind "Team meeting" weekly on monday at 2pm`
-        `!remind "Pay rent" monthly on 1st at 9am`
         `!remind "Book club" monthly on first thursday at 7pm`
         `!remind "Project review" monthly on last friday at 4pm`
         `!remind "Call doctor" tomorrow 3pm`
@@ -216,20 +318,20 @@ class RemindCommand(commands.Cog):
         recurring: Optional[str] = None,
     ):
         """Set a reminder via slash command."""
-        await interaction.response.defer()
-
         reminder_service = self._get_reminder_service()
         remind_at_dt = self.parse_time_input(time)
 
         if not remind_at_dt:
             embed = create_error_embed(
                 f"Invalid time format: `{time}`\n"
-                "Use formats like: `30m`, `2h`, `1d`, `tomorrow 9am`, or ISO date"
+                "Use formats like: `30m`, `2h`, `1d`, `tomorrow 9am`, or `9am`, `2pm`, `9pm`"
             )
             await interaction.followup.send(embed=embed)
             return
 
-        if remind_at_dt <= datetime.utcnow():
+        local_tz = pytz.timezone("America/Denver")
+        now = datetime.now(local_tz)
+        if remind_at_dt <= now:
             embed = create_error_embed("Reminder time must be in the future")
             await interaction.followup.send(embed=embed)
             return
@@ -251,14 +353,15 @@ class RemindCommand(commands.Cog):
             time_str = remind_at_dt.strftime("%I:%M%p").lower()
             recurring_pattern = recurring_pattern.format(time=time_str)
 
+        # Convert to UTC for storage (reminder_service uses UTC)
+        remind_at_utc = remind_at_dt.astimezone(pytz.UTC)
+
         # Create reminder data
         reminder_data = {
             "user_id": str(interaction.user.id),
             "message": message,
-            "time": remind_at_dt,
-            "channel_id": str(interaction.channel.id)
-            if interaction.channel and interaction.guild
-            else None,
+            "time": remind_at_utc,
+            "channel_id": str(interaction.channel.id) if interaction.channel else None,
             "recurring": recurring_pattern,
         }
 

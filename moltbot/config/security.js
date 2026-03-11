@@ -124,12 +124,7 @@ export default {
     allowedScripts: [
       // Example entries - add your own:
       'test.sh',
-      // Personal Intelligence & Memory System scripts:
-      'ingest_discord.js',
-      'generate_digest.js',
-      'generate_journal.js',
-      'query_memory.js',
-      // Mac-only: open/quit apps, lock/sleep/mute, list_laggy, kill_pid (allowlisted actions only; always requires confirmation)
+      // Mac-only: open/quit apps, lock/sleep/mute, list_laggy, kill_pid, night_mode, clean_mac (allowlisted actions only; always requires confirmation)
       'mac_control.js',
       // VPS PM2 Management: list, restart, deploy bots via SSH (always requires confirmation)
       'pm2_control.js',

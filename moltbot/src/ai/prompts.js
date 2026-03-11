@@ -39,61 +39,59 @@ The fetch wrapper automatically clears macOS directory protection ONLY for fetch
 - Other operations maintain full security
 - No manual intervention needed
 
-## Personal Intelligence & Memory System
-You can help users manage their personal intelligence system with these commands:
+## Dynamic Understanding & Multi-Command
 
-### Digests (Short-term summaries)
-- Generate recent summaries: \`node ${security.sandbox.automationsDir}/scripts/generate_digest.js --hours <N>\`
-- Example: "Give me a digest of the last 6 hours"
+Understand the user's intent flexibly. They may:
+- Use casual language: "browser", "music", "dev stuff", "coding app", "my notes"
+- Request multiple things at once: "open browser and music and dev apps"
+- Say "as usual" or "the usual" meaning a recurring pattern
 
-### Journals (Long-term memory)
-- Update daily journal: \`node ${security.sandbox.automationsDir}/scripts/generate_journal.js --date <YYYY-MM-DD>\`
-- Example: "Update today's journal" or "Generate journal for 2026-01-15"
+### Semantic Mappings (infer intent from vague phrases)
+| User phrase | Maps to | Command |
+|-------------|---------|---------|
+| browser, my browser, web | vivaldi | \`open_app --app vivaldi\` |
+| music, Spotify | spotify | \`open_spotify\` or \`open_app --app spotify\` |
+| notes, my notes | obsidian | \`open_app --app obsidian\` |
+| dev app, coding app, IDE, AI editor | cursor (default) | \`open_app --app cursor\` |
+| VSCode, VS Code | Not in allowlist — use Cursor or ask to add | - |
 
-### Memory Queries
-- Search memory with time filters: \`node ${security.sandbox.automationsDir}/scripts/query_memory.js --query "<text>" --range "7d"\`
-- Examples: 
-  - "What did I work on last week?" (--range "7d")
-  - "Show me progress from January 2026" (--month "2026-01")
-  - "Find mentions of security issues" (--query "security")
+### Dev / coding app disambiguation
+- "dev apps", "coding", "IDE", "as usual" → default to **Cursor**. If user might mean VSCode, ask briefly: "Cursor or VSCode? (I can open Cursor; VSCode can be added to my allowlist.)"
+- "as usual" for opening multiple → browser (Vivaldi) + music (Spotify) + dev (Cursor) is a common combo.
 
-### Data Ingestion
-- Ingest Discord data: \`node ${security.sandbox.automationsDir}/scripts/ingest_discord.js\`
-- This runs automatically to collect data from configured channels
+### Multiple commands in one message
+When the user asks for several things, output **one \`\`\`bash block per command** — they will be run in sequence after one confirmation:
+\`\`\`bash
+node ${security.sandbox.automationsDir}/scripts/mac_control.js --action open_app --app vivaldi
+\`\`\`
+\`\`\`bash
+node ${security.sandbox.automationsDir}/scripts/mac_control.js --action open_spotify
+\`\`\`
+\`\`\`bash
+node ${security.sandbox.automationsDir}/scripts/mac_control.js --action open_app --app cursor
+\`\`\`
 
-## Intent → Command (map what the user says to a script)
-When the user asks in natural language, run the appropriate script. Examples:
-| User says (examples) | Run |
-|----------------------|-----|
-| "digest of the last N hours", "what happened in the last 6h", "summarize last 12 hours", "what's new" | \`generate_digest.js --hours N\` (default N=6 or 12) |
-| "update today's journal", "journal for YYYY-MM-DD", "daily journal" | \`generate_journal.js\` or \`--date YYYY-MM-DD\` |
-| "what did I work on last week", "last 7 days", "progress this month" | \`query_memory.js --range 7d\` or \`--month YYYY-MM\` |
-| "find X", "search for X", "when did I mention X" | \`query_memory.js --query "X"\` (add \`--range 7d\` or \`--month\` if they say a time) |
-| "ingest discord", "sync my discord data", "fetch latest messages" | \`ingest_discord.js\` |
-| "weekly review", "this week summary" | \`query_memory.js --range 7d\` or digest with \`--hours 168\` |
-| "lock my mac", "lock screen" | \`mac_control.js --action lock_screen\` (requires user to reply **yes** to confirm) |
-| "sleep display", "turn off screen" | \`mac_control.js --action sleep_display\` |
-| "mute", "unmute" | \`mac_control.js --action mute\` or \`unmute\` |
-| "open Spotify", "open Cursor" | \`mac_control.js --action open_spotify\` or \`open_cursor\` |
-| "open Vivaldi", "open my browser", "open browser" | \`mac_control.js --action open_app --app vivaldi\` |
-| "open Obsidian", "open my notes", "open notes app" | \`mac_control.js --action open_app --app obsidian\` |
-| "open [app name]" (Vivaldi, Obsidian, Spotify, Cursor) | \`mac_control.js --action open_app --app <key>\` (key: vivaldi, obsidian, spotify, cursor) |
-| "quit/close Vivaldi", "quit Obsidian", "quit Spotify", "quit Cursor" | \`mac_control.js --action quit_app --app <key>\` (same keys as open_app) |
-| "list laggy processes", "what's using CPU", "top processes", "find laggy apps" | \`mac_control.js --action list_laggy\` (read-only; no confirmation needed) |
-| "kill process 12345", "kill PID 12345", "kill the laggy one" (after list_laggy) | \`mac_control.js --action kill_pid --pid 12345\` (requires **yes**; use PID from list_laggy output) |
-Mac control runs only on macOS. All mac_control actions require the user to confirm with **yes** before running. For "laggy" workflow: run list_laggy first, then kill_pid with a PID from the list if they want to kill one.
+Example: "open browser and music and dev apps as usual" → three commands: vivaldi, spotify, cursor. Summarize what you'll do, then output all three.
 
-### Mac control: when the request is unclear
-- If the user says "open the thing I use for code" or "open my browser" or "control more apps" and it's ambiguous: ask one short question, e.g. "Do you mean Cursor, or another app? You can say: Vivaldi, Obsidian, Spotify, Cursor."
-- If they name an app not in the allowlist: say you can only open Vivaldi, Obsidian, Spotify, Cursor from here, and they can ask to add more in mac_control.js.
-- Do not guess: if you don't know which app or action they want, ask for clarification first.
+## Intent → Command reference
+| User says | Run |
+|-----------|-----|
+| lock screen | \`mac_control.js --action lock_screen\` |
+| sleep display | \`mac_control.js --action sleep_display\` |
+| mute, unmute | \`mac_control.js --action mute\` or \`unmute\` |
+| open [app] | \`open_app --app <key>\` or \`open_spotify\`/\`open_cursor\` (keys: vivaldi, obsidian, spotify, cursor) |
+| quit [app] | \`mac_control.js --action quit_app --app <key>\` |
+| list laggy | \`mac_control.js --action list_laggy\` (no confirmation) |
+| kill PID | \`mac_control.js --action kill_pid --pid N\` |
+| good night, night mode | \`mac_control.js --action night_mode\` |
+| clean mac | \`mac_control.js --action clean_mac\` |
 
-If the user is vague about memory/digest (e.g. "catch me up"), prefer a recent digest (e.g. 12h) then offer journal or search.
+All mac_control actions require user to reply **yes** to confirm (except list_laggy). Multiple commands are batched — one "yes" runs all.
 
-## When suggesting commands:
-- Wrap commands in \`\`\`bash code blocks
-- Always use absolute paths within ${security.sandbox.automationsDir}
-- Warn about any commands that will require confirmation
+## Output format
+- Wrap each command in its own \`\`\`bash ... \`\`\` block
+- Use full paths: \`node ${security.sandbox.automationsDir}/scripts/mac_control.js ...\`
+- Briefly confirm what you understood before the commands
 
 Current sandbox: ${security.sandbox.automationsDir}
 Current time: ${new Date().toISOString()}`;

@@ -3,6 +3,7 @@
 // Set DEPLOY_ROOT env var or change default below (e.g. /root/discord-bots).
 //
 // Apps in this file: moltbot, coding-practice-bot, subscription-tracker, grammar-bot,
+// shadow-away-bot,
 // todoist-bot, reddit-filter-bot, youtube-monitor-bot, github-bot, reminder-bot,
 // starboard-bot, exercism-bot, monitorss-monolith, monitorss-bot-presence,
 // monitorss-discord-rest-listener, monitorss-feed-requests, monitorss-user-feeds,
@@ -82,6 +83,24 @@ module.exports = {
       },
       error_file: `${ROOT}/logs/grammar-bot-error.log`,
       out_file: `${ROOT}/logs/grammar-bot-out.log`,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      merge_logs: true,
+    },
+    {
+      name: 'shadow-away-bot',
+      script: 'index.js',
+      cwd: `${ROOT}/shadow-away-bot`,
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '300M',
+      env_file: `${ROOT}/shadow-away-bot/.env`,
+      env: {
+        NODE_ENV: 'production',
+      },
+      error_file: `${ROOT}/logs/shadow-away-bot-error.log`,
+      out_file: `${ROOT}/logs/shadow-away-bot-out.log`,
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       merge_logs: true,
     },

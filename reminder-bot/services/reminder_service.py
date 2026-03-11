@@ -3,9 +3,12 @@
 import asyncio
 import logging
 import discord
+import pytz
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from discord.ext import commands
+
+UTC = pytz.UTC
 
 logger = logging.getLogger(__name__)
 
@@ -59,12 +62,18 @@ class ReminderService:
             try:
                 # Get all reminders
                 reminders = self.data.get_all_reminders()
-                now = datetime.utcnow()
+                # Use timezone-aware UTC so we can compare with stored remind_at (also UTC-aware)
+                now = datetime.now(UTC)
 
                 for reminder in reminders:
                     try:
-                        # Parse reminder time
-                        remind_at = datetime.fromisoformat(reminder["remind_at"])
+                        # Parse reminder time (stored as UTC ISO from remind command)
+                        raw = reminder["remind_at"]
+                        remind_at = datetime.fromisoformat(
+                            raw.replace("Z", "+00:00")
+                        )
+                        if remind_at.tzinfo is None:
+                            remind_at = UTC.localize(remind_at)
 
                         if remind_at <= now:
                             await self._send_reminder(reminder)
@@ -74,6 +83,8 @@ class ReminderService:
                                 next_time = self._get_next_recurring_time(
                                     remind_at, reminder["recurring"]
                                 )
+                                if next_time.tzinfo is None:
+                                    next_time = UTC.localize(next_time)
                                 reminder["remind_at"] = next_time.isoformat()
                                 self.data.update_reminder(reminder)
                             else:
@@ -99,11 +110,15 @@ class ReminderService:
         try:
             user_id = int(reminder["user_id"])
             user = self.bot.get_user(user_id)
-
             if not user:
-                logger.warning(
-                    f"User {user_id} not found for reminder {reminder['id']}"
-                )
+                try:
+                    user = await self.bot.fetch_user(user_id)
+                except Exception as fetch_e:
+                    logger.warning(
+                        f"User {user_id} not found for reminder {reminder['id']}: {fetch_e}"
+                    )
+                    return
+            if not user:
                 return
 
             # Create embed for reminder
@@ -135,10 +150,6 @@ class ReminderService:
                             f"Failed to send reminder {reminder['id']} to channel: {e}"
                         )
                         return
-                    except Exception as e:
-                        logger.warning(
-                            f"Failed to send reminder {reminder['id']} to channel: {e}"
-                        )
 
             # Fallback to DM
             try:

@@ -1,0 +1,20 @@
+{
+  "name": "bots",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "discord/bots/src",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/discord/bots",
+        "tsConfig": "discord/bots/tsconfig.lib.json",
+        "packageJson": "discord/bots/package.json",
+        "main": "discord/bots/src/index.ts",
+        "assets": ["discord/bots/*.md"]
+      }
+    }
+  }
+}
