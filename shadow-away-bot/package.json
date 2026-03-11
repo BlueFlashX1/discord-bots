@@ -1,0 +1,31 @@
+{
+  "name": "shadow-away-bot",
+  "version": "1.0.0",
+  "description": "Owner-only shadow-away mention responder with return digest.",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "deploy": "node deploy-commands.js"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "shadowaway",
+    "mentions"
+  ],
+  "author": "Matthew Thompson",
+  "license": "ISC",
+  "dependencies": {
+    "discord.js": "^14.25.1",
+    "dotenv": "^17.2.3",
+    "openai": "^4.104.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  },
+  "overrides": {
+    "undici": "^6.23.0"
+  }
+}
