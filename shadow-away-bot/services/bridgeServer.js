@@ -29,6 +29,12 @@ function normalizeBridgePath(rawPath) {
   return value.startsWith('/') ? value : `/${value}`;
 }
 
+function clampInt(value, min, max, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(n)));
+}
+
 function resolveCorsOrigin(origin, allowedOrigins, allowAnyOrigin) {
   if (!origin) return '*';
   if (allowAnyOrigin) return origin;
@@ -86,7 +92,7 @@ function buildBridgeServer({ logger, service }) {
   const host = String(process.env.SHADOWAWAY_BRIDGE_HOST || '127.0.0.1').trim() || '127.0.0.1';
   const path = normalizeBridgePath(process.env.SHADOWAWAY_BRIDGE_PATH || '/shadowaway/bridge');
   const secret = process.env.SHADOWAWAY_BRIDGE_SECRET || '';
-  const maxDriftMs = Number(process.env.SHADOWAWAY_BRIDGE_MAX_DRIFT_MS || 60000);
+  const maxDriftMs = clampInt(process.env.SHADOWAWAY_BRIDGE_MAX_DRIFT_MS, 1000, 3600000, 300000);
   const allowedOrigins = parseCsvSet(process.env.SHADOWAWAY_BRIDGE_ALLOWED_ORIGINS || 'https://discord.com,https://ptb.discord.com,https://canary.discord.com');
   const allowAnyOrigin = allowedOrigins.has('*');
   const trustedIps = parseCsvSet(process.env.SHADOWAWAY_BRIDGE_TRUSTED_IPS || '');
@@ -149,7 +155,12 @@ function buildBridgeServer({ logger, service }) {
       const nowMs = Date.now();
       if (Math.abs(nowMs - timestampMs) > maxDriftMs) {
         res.writeHead(401, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({ ok: false, error: 'timestamp_out_of_range' }));
+        res.end(JSON.stringify({
+          ok: false,
+          error: 'timestamp_out_of_range',
+          serverTimeMs: nowMs,
+          maxDriftMs,
+        }));
         return;
       }
 
