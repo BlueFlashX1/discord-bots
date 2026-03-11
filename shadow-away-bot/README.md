@@ -19,10 +19,9 @@ Owner-only Discord bot that replies when you are away and sends a return digest 
 
 ## Command
 Use `/shadowaway` with subcommands:
-- `on`, `off`, `status`, `set`, `back`, `test`, `validate-perms`, `why-last-skip`, `emergency-off`
-- allowlist controls: `allow guild-add`, `allow guild-remove`, `allow channel-add`, `allow channel-remove`
-- cooldown control: `cooldown set`
+- `on`, `off`, `status`, `set`, `back`
 - AI control: `ai mode` (`static` or `ai`)
+- Scope policy: if `deployedGuildIds` is configured, replies are restricted to those guild(s); channels are allowed by default.
 
 ## Bridge API (Optional)
 Enable with `SHADOWAWAY_BRIDGE_ENABLED=true` and set `SHADOWAWAY_BRIDGE_SECRET`.
@@ -37,8 +36,11 @@ Enable with `SHADOWAWAY_BRIDGE_ENABLED=true` and set `SHADOWAWAY_BRIDGE_SECRET`.
   - `away_on` (enable away mode + status text)
   - `away_off` (disable away mode)
   - `user_back_online` (close away session + send digest; requires guild/channel scope)
+  - `peek_pending_digest` (owner-only, read-only digest summary for UI badges)
+  - `consume_pending_digest` (owner-only, channel-locked fetch + clear of cached return digest)
 - Auto return mode:
   - plugin can emit `user_back_online` on your first outbound normal text message in guild channels.
+  - channel-header widget can emit `consume_pending_digest` to open a private local report view and clear the cached digest.
 
 ### Remote Bridge on VPS (DigitalOcean)
 - `shadow-away-bot` is in the VPS PM2 ecosystem/deploy workflow (`ecosystem.config.example.js` + `.github/workflows/deploy.yml`).

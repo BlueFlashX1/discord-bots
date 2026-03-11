@@ -53,6 +53,7 @@ function buildInitialState(profile) {
     },
     pendingMentions: [],
     deliveryPrompts: {},
+    pendingReturnDigest: null,
     lastSkip: null,
     nonceCache: {},
   };
@@ -180,6 +181,13 @@ class StateStore {
       const expMs = Number(meta?.expMs || 0);
       if (!Number.isFinite(expMs) || expMs <= nowMs) {
         delete st.deliveryPrompts[replyMessageId];
+      }
+    }
+
+    if (st.pendingReturnDigest) {
+      const createdMs = Number(st.pendingReturnDigest.createdMs || 0);
+      if (!Number.isFinite(createdMs) || nowMs - createdMs >= ONE_DAY_MS) {
+        st.pendingReturnDigest = null;
       }
     }
   }

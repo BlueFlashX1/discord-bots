@@ -8,6 +8,7 @@ const NONCE_TTL_MS = 5 * 60 * 1000;
 const PENDING_QUEUE_CAP = 1000;
 const DELIVERY_PROMPT_TTL_MS = ONE_DAY_MS;
 const DELIVERY_MESSAGE_MAX_LEN = 300;
+const BRIDGE_DIGEST_MAX_ENTRIES = 200;
 
 class ShadowAwayService {
   constructor({ client, store, logger, aiResponder }) {
@@ -107,14 +108,6 @@ class ShadowAwayService {
 
     if (profile.deployedGuildIds.length > 0 && !profile.deployedGuildIds.includes(guildId)) {
       return { ok: false, reason: 'guild_not_deployed' };
-    }
-
-    if (!profile.allowGuildIds.includes(guildId)) {
-      return { ok: false, reason: 'guild_not_allowlisted' };
-    }
-
-    if (profile.allowChannelIds.length > 0 && !profile.allowChannelIds.includes(channelId)) {
-      return { ok: false, reason: 'channel_not_allowlisted' };
     }
 
     return { ok: true };
@@ -424,26 +417,47 @@ ${profile.signatureMarker}`;
       channel: message.channel,
       ownerUserId: message.author.id,
       preferPrivate: true,
+      deliveryMode: 'cache_private',
     });
 
     return true;
   }
 
-  async closeAwaySessionAndReport({ triggerType, guildId, channelId, channel, ownerUserId, preferPrivate = false }) {
+  async closeAwaySessionAndReport({
+    triggerType,
+    guildId,
+    channelId,
+    channel,
+    ownerUserId,
+    preferPrivate = false,
+    deliveryMode = 'auto',
+  }) {
     const state = this.store.getState();
     const profile = state.profile;
     const pending = [...(state.pendingMentions || [])];
+    const nowMs = Date.now();
+    const now = new Date(nowMs).toISOString();
 
     this.store.mutate((st) => {
       st.profile.enabled = false;
-      st.profile.updatedAt = new Date().toISOString();
+      st.profile.updatedAt = now;
       st.pendingMentions = [];
+      st.deliveryPrompts = {};
+      st.pendingReturnDigest = pending.length
+        ? {
+            createdMs: nowMs,
+            triggerType,
+            guildId,
+            channelId,
+            entries: pending,
+          }
+        : null;
       st.lastReturnDigest = {
         triggerType,
         guildId,
         channelId,
         mentionCount: pending.length,
-        timestamp: new Date().toISOString(),
+        timestamp: now,
       };
     });
 
@@ -454,10 +468,37 @@ ${profile.signatureMarker}`;
         guildId,
         channelId,
       });
-      return { delivered: false, mentionCount: 0, reason: 'no_pending_mentions' };
+      return { delivered: false, mentionCount: 0, reason: 'no_pending_mentions', embeds: [] };
     }
 
     const embeds = this._buildDigestEmbeds(pending);
+
+    if (deliveryMode === 'cache_private') {
+      this.logger.info('Away session digest cached for private interaction delivery', {
+        event: 'shadowaway_digest_cached_private',
+        triggerType,
+        guildId,
+        channelId,
+        mentionCount: pending.length,
+      });
+      return {
+        delivered: false,
+        mentionCount: pending.length,
+        deliveryTarget: 'cached_private',
+        reason: 'awaiting_private_interaction',
+        embeds,
+      };
+    }
+
+    if (deliveryMode === 'interaction_private') {
+      this._clearPendingReturnDigest();
+      return {
+        delivered: true,
+        mentionCount: pending.length,
+        deliveryTarget: 'interaction_private',
+        embeds,
+      };
+    }
 
     let delivered = false;
     let deliveryTarget = 'none';
@@ -508,6 +549,10 @@ ${profile.signatureMarker}`;
       }
     }
 
+    if (delivered) {
+      this._clearPendingReturnDigest();
+    }
+
     this.logger.info('Away session closed with digest result', {
       event: 'shadowaway_return_digest_result',
       triggerType,
@@ -518,8 +563,75 @@ ${profile.signatureMarker}`;
       channelId,
     });
 
-    return { delivered, mentionCount: pending.length, deliveryTarget };
+    return { delivered, mentionCount: pending.length, deliveryTarget, embeds };
   }
+
+  _clearPendingReturnDigest() {
+    this.store.mutate((st) => {
+      st.pendingReturnDigest = null;
+    });
+  }
+
+  consumePendingReturnDigest() {
+    const digest = this.store.getState().pendingReturnDigest;
+    if (!digest || !Array.isArray(digest.entries) || !digest.entries.length) return null;
+    this._clearPendingReturnDigest();
+    return digest;
+  }
+
+  getPendingReturnDigestMeta() {
+    const digest = this.store.getState().pendingReturnDigest;
+    if (!digest || !Array.isArray(digest.entries) || !digest.entries.length) return null;
+    return {
+      guildId: digest.guildId || null,
+      channelId: digest.channelId || null,
+      mentionCount: digest.entries.length,
+      createdMs: Number(digest.createdMs || 0) || null,
+    };
+  }
+
+  buildDigestEmbeds(entries) {
+    return this._buildDigestEmbeds(Array.isArray(entries) ? entries : []);
+  }
+
+  _sanitizeBridgeDigestEntries(entries) {
+    const safeEntries = Array.isArray(entries) ? entries : [];
+    return safeEntries.slice(0, BRIDGE_DIGEST_MAX_ENTRIES).map((row) => ({
+      triggerUserId: row.triggerUserId || null,
+      triggerUserTag: row.triggerUserTag || null,
+      guildId: row.guildId || null,
+      guildName: row.guildName || null,
+      channelId: row.channelId || null,
+      channelName: row.channelName || null,
+      messageId: row.messageId || null,
+      messageLink: row.messageLink || null,
+      messageContentPreview: this._sanitizeDigestSnippet(row.messageContentPreview || ''),
+      deliveryMessagePreview: row.deliveryMessagePreview
+        ? this._sanitizeDigestSnippet(row.deliveryMessagePreview)
+        : null,
+      deliveryMessageLink: row.deliveryMessageLink || null,
+      timestampMs: Number(row.timestampMs || 0) || null,
+      deliveryTimestampMs: Number(row.deliveryTimestampMs || 0) || null,
+    }));
+  }
+
+  async deliverEmbedsToOwnerDM(ownerUserId, embeds) {
+    try {
+      const ownerId = String(ownerUserId || this.getPrimaryOwnerId());
+      if (!ownerId || !Array.isArray(embeds) || embeds.length === 0) return false;
+      const ownerUser = await this.client.users.fetch(ownerId);
+      await ownerUser.send({ embeds });
+      return true;
+    } catch (error) {
+      this.logger.warn('Failed to deliver embeds to owner DM fallback', {
+        event: 'shadowaway_embed_dm_fallback_failed',
+        ownerUserId: ownerUserId || null,
+        error: error.message,
+      });
+      return false;
+    }
+  }
+
 
   _buildDigestEmbeds(pendingMentions) {
     const sorted = [...pendingMentions].sort((a, b) => (a.timestampMs || 0) - (b.timestampMs || 0));
@@ -700,8 +812,108 @@ ${profile.signatureMarker}`;
         channelId: channelId || null,
         channel,
         ownerUserId: payload.ownerUserId || ownerId,
+        deliveryMode: 'cache_private',
       });
       return { ok: true, action: 'user_back_online' };
+    }
+
+    if (eventType === 'consume_pending_digest') {
+      if (!requestedOwnerId) {
+        return { ok: false, reason: 'missing_owner_user_id' };
+      }
+
+      const guildId = payload.guildId ? String(payload.guildId) : null;
+      const channelId = payload.channelId ? String(payload.channelId) : null;
+      if (!guildId || !channelId) {
+        return { ok: false, reason: 'bridge_missing_channel_context' };
+      }
+
+      const digest = this.store.getState().pendingReturnDigest;
+      if (!digest || !Array.isArray(digest.entries) || digest.entries.length === 0) {
+        return {
+          ok: true,
+          action: 'consume_pending_digest',
+          consumed: false,
+          reason: 'no_pending_digest',
+        };
+      }
+
+      const expectedGuildId = digest.guildId || null;
+      const expectedChannelId = digest.channelId || null;
+      const lockedToChannel = Boolean(expectedGuildId && expectedChannelId);
+      if (lockedToChannel && (expectedGuildId !== guildId || expectedChannelId !== channelId)) {
+        return {
+          ok: true,
+          action: 'consume_pending_digest',
+          consumed: false,
+          reason: 'locked_to_channel',
+          expectedGuildId,
+          expectedChannelId,
+          mentionCount: digest.entries.length,
+        };
+      }
+
+      const entries = this._sanitizeBridgeDigestEntries(digest.entries);
+      const truncated = digest.entries.length > entries.length;
+      this._clearPendingReturnDigest();
+
+      return {
+        ok: true,
+        action: 'consume_pending_digest',
+        consumed: true,
+        mentionCount: digest.entries.length,
+        createdMs: Number(digest.createdMs || 0) || Date.now(),
+        entries,
+        truncated,
+      };
+    }
+
+    if (eventType === 'peek_pending_digest') {
+      if (!requestedOwnerId) {
+        return { ok: false, reason: 'missing_owner_user_id' };
+      }
+
+      const guildId = payload.guildId ? String(payload.guildId) : null;
+      const channelId = payload.channelId ? String(payload.channelId) : null;
+
+      const digest = this.store.getState().pendingReturnDigest;
+      if (!digest || !Array.isArray(digest.entries) || digest.entries.length === 0) {
+        return {
+          ok: true,
+          action: 'peek_pending_digest',
+          hasPending: false,
+          mentionCount: 0,
+          hasDelivered: false,
+          lockedToChannel: false,
+          expectedGuildId: null,
+          expectedChannelId: null,
+          inSelectedChannel: false,
+        };
+      }
+
+      const expectedGuildId = digest.guildId || null;
+      const expectedChannelId = digest.channelId || null;
+      const lockedToChannel = Boolean(expectedGuildId && expectedChannelId);
+      const inSelectedChannel = Boolean(
+        lockedToChannel &&
+        guildId &&
+        channelId &&
+        expectedGuildId === guildId &&
+        expectedChannelId === channelId
+      );
+      const hasDelivered = digest.entries.some((row) => Boolean(row?.deliveryMessagePreview));
+
+      return {
+        ok: true,
+        action: 'peek_pending_digest',
+        hasPending: true,
+        mentionCount: digest.entries.length,
+        hasDelivered,
+        lockedToChannel,
+        expectedGuildId,
+        expectedChannelId,
+        inSelectedChannel,
+      };
     }
 
     return { ok: false, reason: 'unsupported_event_type' };
