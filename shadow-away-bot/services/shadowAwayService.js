@@ -6,6 +6,8 @@ const TRIGGER_COOLDOWN_MS = 15 * 60 * 1000;
 const CHANNEL_COOLDOWN_MS = 60 * 1000;
 const NONCE_TTL_MS = 5 * 60 * 1000;
 const PENDING_QUEUE_CAP = 1000;
+const DELIVERY_PROMPT_TTL_MS = ONE_DAY_MS;
+const DELIVERY_MESSAGE_MAX_LEN = 300;
 
 class ShadowAwayService {
   constructor({ client, store, logger, aiResponder }) {
@@ -130,7 +132,9 @@ class ShadowAwayService {
       statusClause = await this.aiResponder.rephraseStatusClause(profile.statusTemplate, sourceMessageText);
     }
 
-    return `<@${triggerUserId}>, your message is noted. My liege ${statusClause}\n${profile.signatureMarker}`;
+    return `<@${triggerUserId}>, your message is noted. My liege ${statusClause}
+If you want to leave a message for my liege, reply to this shadow message and I will deliver it upon return.
+${profile.signatureMarker}`;
   }
 
   async handleMessageCreate(message) {
@@ -144,6 +148,10 @@ class ShadowAwayService {
 
     if (!profile.enabled) return;
     if (!message.guild || !message.channel) return;
+
+    const deliveryCaptured = await this._handleDeliveryReplyIfNeeded(message);
+    if (deliveryCaptured) return;
+
     if (!message.mentions?.users?.has(profile.targetUserId)) return;
 
     const scope = this.evaluateScope(message.guild.id, message.channel.id);
@@ -163,7 +171,7 @@ class ShadowAwayService {
       return;
     }
 
-    this._recordPendingMention(message);
+    const pendingMentionId = this._recordPendingMention(message);
 
     const gate = this._shouldSendAutoReply(message);
     if (!gate.ok) {
@@ -187,7 +195,7 @@ class ShadowAwayService {
         },
       });
 
-      this._commitPostSend(message, reply.id);
+      this._commitPostSend(message, reply.id, pendingMentionId);
       this.logger.info('Shadow auto-reply sent', {
         event: 'shadowaway_auto_reply_sent',
         guildId: message.guild.id,
@@ -213,10 +221,12 @@ class ShadowAwayService {
   }
 
   _recordPendingMention(message) {
+    const pendingId = `pm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const preview = (message.content || '').slice(0, 200);
 
     this.store.mutate((st) => {
       st.pendingMentions.push({
+        pendingId,
         triggerUserId: message.author.id,
         triggerUserTag: message.author.tag,
         guildId: message.guild.id,
@@ -226,6 +236,9 @@ class ShadowAwayService {
         messageId: message.id,
         messageLink: `https://discord.com/channels/${message.guild.id}/${message.channel.id}/${message.id}`,
         messageContentPreview: preview,
+        deliveryMessagePreview: null,
+        deliveryMessageLink: null,
+        deliveryTimestampMs: null,
         timestampMs: Date.now(),
       });
 
@@ -233,6 +246,8 @@ class ShadowAwayService {
         st.pendingMentions = st.pendingMentions.slice(st.pendingMentions.length - PENDING_QUEUE_CAP);
       }
     });
+
+    return pendingId;
   }
 
   _shouldSendAutoReply(message) {
@@ -287,7 +302,7 @@ class ShadowAwayService {
     return entries.filter((ts) => now - ts < ONE_HOUR_MS).length;
   }
 
-  _commitPostSend(message, replyMessageId) {
+  _commitPostSend(message, replyMessageId, pendingMentionId = null) {
     const now = Date.now();
     const profile = this.store.getProfile();
     const dedupeKey = `${profile.targetUserId}:${message.guild.id}:${message.channel.id}:${message.author.id}`;
@@ -315,7 +330,80 @@ class ShadowAwayService {
         replyMessageId,
         timestamp: new Date(now).toISOString(),
       };
+
+      if (pendingMentionId) {
+        st.deliveryPrompts = st.deliveryPrompts || {};
+        st.deliveryPrompts[replyMessageId] = {
+          pendingMentionId,
+          triggerUserId: message.author.id,
+          guildId: message.guild.id,
+          channelId: message.channel.id,
+          expMs: now + DELIVERY_PROMPT_TTL_MS,
+        };
+      }
     });
+  }
+
+  async _handleDeliveryReplyIfNeeded(message) {
+    const referenceMessageId = message.reference?.messageId;
+    if (!referenceMessageId) return false;
+
+    const state = this.store.getState();
+    const prompt = state.deliveryPrompts?.[referenceMessageId];
+    if (!prompt) return false;
+
+    if (prompt.triggerUserId !== message.author.id) return false;
+    if (prompt.guildId !== message.guild.id || prompt.channelId !== message.channel.id) return false;
+
+    const deliveryText = String(message.content || '').trim().slice(0, DELIVERY_MESSAGE_MAX_LEN);
+    if (!deliveryText) return false;
+
+    const deliveryLink = `https://discord.com/channels/${message.guild.id}/${message.channel.id}/${message.id}`;
+    const now = Date.now();
+
+    this.store.mutate((st) => {
+      const pending = (st.pendingMentions || []).find((entry) => entry.pendingId === prompt.pendingMentionId);
+      if (pending) {
+        pending.deliveryMessagePreview = deliveryText;
+        pending.deliveryMessageLink = deliveryLink;
+        pending.deliveryTimestampMs = now;
+      }
+
+      if (st.deliveryPrompts) {
+        delete st.deliveryPrompts[referenceMessageId];
+      }
+    });
+
+    try {
+      await message.reply({
+        content: `<@${message.author.id}>, your message is noted. I will deliver it when my liege returns.`,
+        allowedMentions: {
+          users: [message.author.id],
+          repliedUser: false,
+          parse: [],
+        },
+      });
+    } catch (error) {
+      this.logger.warn('Failed to send delivery acknowledgement', {
+        event: 'shadowaway_delivery_ack_failed',
+        guildId: message.guild.id,
+        channelId: message.channel.id,
+        triggerUserId: message.author.id,
+        messageId: message.id,
+        error: error.message,
+      });
+    }
+
+    this.logger.info('Shadow delivery message captured', {
+      event: 'shadowaway_delivery_captured',
+      guildId: message.guild.id,
+      channelId: message.channel.id,
+      triggerUserId: message.author.id,
+      messageId: message.id,
+      pendingMentionId: prompt.pendingMentionId,
+    });
+
+    return true;
   }
 
   async _handleReturnSignalIfNeeded(message, profile) {
@@ -335,12 +423,13 @@ class ShadowAwayService {
       channelId: message.channel.id,
       channel: message.channel,
       ownerUserId: message.author.id,
+      preferPrivate: true,
     });
 
     return true;
   }
 
-  async closeAwaySessionAndReport({ triggerType, guildId, channelId, channel, ownerUserId }) {
+  async closeAwaySessionAndReport({ triggerType, guildId, channelId, channel, ownerUserId, preferPrivate = false }) {
     const state = this.store.getState();
     const profile = state.profile;
     const pending = [...(state.pendingMentions || [])];
@@ -373,7 +462,24 @@ class ShadowAwayService {
     let delivered = false;
     let deliveryTarget = 'none';
 
-    if (channel) {
+    const ownerId = ownerUserId || profile.targetUserId || this.getPrimaryOwnerId();
+
+    if (preferPrivate) {
+      try {
+        const ownerUser = await this.client.users.fetch(ownerId);
+        await ownerUser.send({ embeds });
+        delivered = true;
+        deliveryTarget = 'dm_primary';
+      } catch (error) {
+        this.logger.warn('Failed to send private return digest; trying channel fallback', {
+          event: 'shadowaway_digest_dm_primary_failed',
+          ownerUserId: ownerId,
+          error: error.message,
+        });
+      }
+    }
+
+    if (!delivered && channel) {
       try {
         await channel.send({ embeds });
         delivered = true;
@@ -390,7 +496,6 @@ class ShadowAwayService {
 
     if (!delivered) {
       try {
-        const ownerId = ownerUserId || profile.targetUserId || this.getPrimaryOwnerId();
         const ownerUser = await this.client.users.fetch(ownerId);
         await ownerUser.send({ embeds });
         delivered = true;
@@ -398,7 +503,7 @@ class ShadowAwayService {
       } catch (error) {
         this.logger.error('Failed to deliver return digest via DM fallback', error, {
           event: 'shadowaway_digest_dm_failed',
-          ownerUserId: ownerUserId || profile.targetUserId,
+          ownerUserId: ownerId,
         });
       }
     }
@@ -440,7 +545,7 @@ class ShadowAwayService {
       .setDescription(
         `My liege, ${pendingMentions.length} mention${pendingMentions.length === 1 ? '' : 's'} were recorded while you were away.`
       )
-      .setFooter({ text: 'Use the message links to jump directly to each mention.' })
+      .setFooter({ text: 'Includes mention context and any delivered messages.' })
       .setTimestamp(new Date());
 
     const detailEmbeds = [];
@@ -450,7 +555,12 @@ class ShadowAwayService {
     for (const group of grouped.values()) {
       const lines = group.rows.map((row) => {
         const ts = row.timestampMs ? Math.floor(row.timestampMs / 1000) : Math.floor(Date.now() / 1000);
-        return `• <@${row.triggerUserId}> ([jump](${row.messageLink})) <t:${ts}:R>`;
+        const mentionPreview = this._sanitizeDigestSnippet(row.messageContentPreview || 'No message text.');
+        const delivered = row.deliveryMessagePreview
+          ? this._sanitizeDigestSnippet(row.deliveryMessagePreview)
+          : null;
+        const deliveryLine = delivered ? `\n  Delivery: "${delivered}"` : '\n  Delivery: (none)';
+        return `• <@${row.triggerUserId}> ([jump](${row.messageLink})) <t:${ts}:R>\n  Mention: "${mentionPreview}"${deliveryLine}`;
       });
 
       const fieldValue = lines.join('\n').slice(0, 1000) || 'No entries.';
@@ -480,6 +590,11 @@ class ShadowAwayService {
       return channel.name;
     }
     return `channel-${channel.id}`;
+  }
+
+  _sanitizeDigestSnippet(text) {
+    const normalized = String(text || '').replace(/\s+/g, ' ').trim();
+    return normalized.slice(0, 140) || 'No message text.';
   }
 
   _sanitizeStatus(input) {

@@ -52,6 +52,7 @@ function buildInitialState(profile) {
       channel: {},
     },
     pendingMentions: [],
+    deliveryPrompts: {},
     lastSkip: null,
     nonceCache: {},
   };
@@ -124,6 +125,9 @@ class StateStore {
 
   _prune(nowMs) {
     const st = this.state;
+    if (!st.deliveryPrompts || typeof st.deliveryPrompts !== 'object') {
+      st.deliveryPrompts = {};
+    }
 
     for (const [key, exp] of Object.entries(st.dedupe || {})) {
       if (!Number.isFinite(exp) || exp <= nowMs) delete st.dedupe[key];
@@ -170,6 +174,13 @@ class StateStore {
 
     for (const [nonce, exp] of Object.entries(st.nonceCache || {})) {
       if (!Number.isFinite(exp) || exp <= nowMs) delete st.nonceCache[nonce];
+    }
+
+    for (const [replyMessageId, meta] of Object.entries(st.deliveryPrompts || {})) {
+      const expMs = Number(meta?.expMs || 0);
+      if (!Number.isFinite(expMs) || expMs <= nowMs) {
+        delete st.deliveryPrompts[replyMessageId];
+      }
     }
   }
 
