@@ -3,6 +3,7 @@ const path = require('path');
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const ONE_DAY_MS = 24 * ONE_HOUR_MS;
+const MIN_REPLY_COOLDOWN_SECONDS = 60 * 60;
 
 function nowIso() {
   return new Date().toISOString();
@@ -17,7 +18,7 @@ function parseCsvSet(input) {
 }
 
 function buildInitialProfile(config = {}) {
-  const defaultReplyMode = process.env.OPENAI_API_KEY ? 'ai' : 'static';
+  const defaultReplyMode = 'ai';
   return {
     targetUserId: config.targetUserId || '',
     ownerUserIds: parseCsvSet(config.ownerUserIds),
@@ -27,7 +28,7 @@ function buildInitialProfile(config = {}) {
     statusTemplate: 'is currently away.',
     allowGuildIds: [],
     allowChannelIds: [],
-    cooldownSeconds: 60,
+    cooldownSeconds: MIN_REPLY_COOLDOWN_SECONDS,
     signatureMarker: '[SHADOW-AUTO-REPLY]',
     maxRepliesPerGuildPerHour: 12,
     maxRepliesPerChannelPerHour: 6,
@@ -114,12 +115,13 @@ class StateStore {
 
   _ensureProfileDefaults() {
     const profile = this.state.profile;
-    const defaultReplyMode = process.env.OPENAI_API_KEY ? 'ai' : 'static';
+    const defaultReplyMode = 'ai';
     if (!Array.isArray(profile.ownerUserIds)) profile.ownerUserIds = [];
     if (!Array.isArray(profile.deployedGuildIds)) profile.deployedGuildIds = [];
     if (!Array.isArray(profile.allowGuildIds)) profile.allowGuildIds = [];
     if (!Array.isArray(profile.allowChannelIds)) profile.allowChannelIds = [];
-    if (typeof profile.cooldownSeconds !== 'number') profile.cooldownSeconds = 60;
+    if (typeof profile.cooldownSeconds !== 'number') profile.cooldownSeconds = MIN_REPLY_COOLDOWN_SECONDS;
+    profile.cooldownSeconds = Math.max(MIN_REPLY_COOLDOWN_SECONDS, Math.floor(profile.cooldownSeconds));
     if (!profile.signatureMarker) profile.signatureMarker = '[SHADOW-AUTO-REPLY]';
     if (!profile.replyMode) profile.replyMode = defaultReplyMode;
     if (!profile.updatedAt) profile.updatedAt = nowIso();

@@ -4,6 +4,7 @@ const { ONE_HOUR_MS, ONE_DAY_MS } = require('./stateStore');
 const DEDUPE_TTL_MS = 10 * 60 * 1000;
 const TRIGGER_COOLDOWN_MS = 15 * 60 * 1000;
 const CHANNEL_COOLDOWN_MS = 60 * 1000;
+const MIN_GLOBAL_REPLY_COOLDOWN_MS = ONE_HOUR_MS;
 const NONCE_TTL_MS = 5 * 60 * 1000;
 const PENDING_QUEUE_CAP = 1000;
 const DELIVERY_PROMPT_TTL_MS = ONE_DAY_MS;
@@ -58,7 +59,7 @@ class ShadowAwayService {
   }
 
   setCooldownSeconds(seconds) {
-    const safe = Math.max(5, Math.min(3600, Number(seconds) || 60));
+    const safe = Math.max(3600, Math.min(86400, Number(seconds) || 3600));
     return this.store.updateProfile({ cooldownSeconds: safe });
   }
 
@@ -123,21 +124,20 @@ class ShadowAwayService {
 
   async buildReplyContent(triggerUserId, sourceMessageText = '') {
     const profile = this.store.getProfile();
-    let statusClause = profile.statusTemplate;
-
-    if (profile.replyMode === 'ai' && this.aiResponder?.isEnabled()) {
-      statusClause = await this.aiResponder.rephraseStatusClause(profile.statusTemplate, sourceMessageText);
+    const awayMeta = this.getAwayDurationMeta(profile);
+    if (this.aiResponder && typeof this.aiResponder.generateAutoReply === 'function') {
+      return this.aiResponder.generateAutoReply({
+        triggerUserId,
+        statusTemplate: profile.statusTemplate,
+        sourceMessageText,
+        awayForText: awayMeta?.awayForText || '',
+      });
     }
 
-    const awayMeta = this.getAwayDurationMeta(profile);
-    const awayLine = awayMeta
-      ? `My liege ${statusClause} (away for ${awayMeta.awayForText}).`
-      : `My liege ${statusClause}`;
-
+    const awayLine = this._composeAwayLine(profile.statusTemplate, awayMeta);
     return `<@${triggerUserId}>, your message is noted.
 ${awayLine}
-If you want to leave a message for my liege, reply to this shadow message and I will deliver it upon return.
-${profile.signatureMarker}`;
+If you want to leave a message for my liege, reply to this shadow message and I will deliver it upon return.`;
   }
 
   async handleMessageCreate(message) {
@@ -314,7 +314,7 @@ ${profile.signatureMarker}`;
 
     this.store.mutate((st) => {
       st.dedupe[dedupeKey] = now + DEDUPE_TTL_MS;
-      st.cooldowns.globalUntilMs = now + (profile.cooldownSeconds * 1000);
+      st.cooldowns.globalUntilMs = now + Math.max(MIN_GLOBAL_REPLY_COOLDOWN_MS, profile.cooldownSeconds * 1000);
       st.cooldowns.byTrigger[triggerCooldownKey] = now + TRIGGER_COOLDOWN_MS;
       st.cooldowns.byChannel[channelCooldownKey] = now + CHANNEL_COOLDOWN_MS;
 
@@ -347,6 +347,46 @@ ${profile.signatureMarker}`;
     });
   }
 
+  _composeAwayLine(statusClause, awayMeta) {
+    let clause = String(statusClause || '').trim();
+    if (!clause) clause = 'is currently away';
+
+    const hasAuxiliaryVerb = /^(is|was|will|has|have|had|can|could|should|may|might|must)\b/i.test(clause);
+    if (!hasAuxiliaryVerb) {
+      // If user starts with title case ("Engaged..."), normalize after prepending "is".
+      if (/^[A-Z]/.test(clause)) {
+        clause = clause.charAt(0).toLowerCase() + clause.slice(1);
+      }
+      clause = `is ${clause}`;
+    }
+
+    clause = clause.replace(/\s+/g, ' ').trim().replace(/[.!?]+$/, '');
+    const awaySuffix = awayMeta ? ` (away for ${awayMeta.awayForText})` : '';
+    return `My liege ${clause}${awaySuffix}.`;
+  }
+
+  async _isValidDeliveryPromptReply(message, referenceMessageId, prompt) {
+    const botUserId = this.client?.user?.id ? String(this.client.user.id) : null;
+    if (!botUserId) return false;
+
+    // Keep explicit scope checks local so a forged/stale prompt cannot cross-bind.
+    if (String(prompt?.triggerUserId || '') !== String(message.author?.id || '')) return false;
+    if (String(prompt?.guildId || '') !== String(message.guild?.id || '')) return false;
+    if (String(prompt?.channelId || '') !== String(message.channel?.id || '')) return false;
+
+    let referencedMessage = null;
+    try {
+      referencedMessage = await message.fetchReference();
+    } catch (_) {
+      return false;
+    }
+    if (!referencedMessage) return false;
+    if (String(referencedMessage.id || '') !== String(referenceMessageId)) return false;
+    if (String(referencedMessage.author?.id || '') !== botUserId) return false;
+
+    return true;
+  }
+
   async _handleDeliveryReplyIfNeeded(message) {
     const referenceMessageId = message.reference?.messageId;
     if (!referenceMessageId) return false;
@@ -355,8 +395,21 @@ ${profile.signatureMarker}`;
     const prompt = state.deliveryPrompts?.[referenceMessageId];
     if (!prompt) return false;
 
-    if (prompt.triggerUserId !== message.author.id) return false;
-    if (prompt.guildId !== message.guild.id || prompt.channelId !== message.channel.id) return false;
+    const isShadowPromptReply = await this._isValidDeliveryPromptReply(
+      message,
+      referenceMessageId,
+      prompt
+    );
+    if (!isShadowPromptReply) {
+      this.markLastSkip('delivery_requires_reply_to_shadow_prompt', {
+        guildId: message.guild?.id || null,
+        channelId: message.channel?.id || null,
+        triggerUserId: message.author?.id || null,
+        messageId: message.id || null,
+        referenceMessageId: referenceMessageId || null,
+      });
+      return false;
+    }
 
     const deliveryText = String(message.content || '').trim().slice(0, DELIVERY_MESSAGE_MAX_LEN);
     if (!deliveryText) return false;

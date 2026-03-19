@@ -19,7 +19,7 @@ function describeProfile(profile, pendingCount = 0) {
     `Allowlisted Channels: **${profile.allowChannelIds.length}**`,
     `Deployed Guilds: **${profile.deployedGuildIds.length}**`,
     `Cooldown: **${profile.cooldownSeconds}s**`,
-    `Reply Mode: **${profile.replyMode || 'static'}**`,
+    `Reply Engine: **AI-first (always)**`,
     `Hourly Limits: global **${profile.maxRepliesGlobalPerHour}**, guild **${profile.maxRepliesPerGuildPerHour}**, channel **${profile.maxRepliesPerChannelPerHour}**`,
     `Pending Mentions: **${pendingCount}**`,
     `Status: ${profile.statusTemplate}`,
@@ -99,11 +99,11 @@ module.exports = {
     if (group === 'ai' && sub === 'mode') {
       const mode = interaction.options.getString('value', true);
       const profile = service.setReplyMode(mode);
-      const aiNote = profile.replyMode === 'ai' && !service.isAiAvailable()
-        ? '\nOpenAI key is missing; runtime will fallback to static replies.'
-        : '';
+      const aiNote = service.isAiAvailable()
+        ? 'AI replies are active by default.'
+        : 'OpenAI key is missing; runtime will fallback to static replies.';
       return replyEphemeral(interaction, {
-        embeds: [createEmbed('AI Mode Updated', `Reply mode set to **${profile.replyMode}**.${aiNote}`)],
+        embeds: [createEmbed('AI Reply Engine', `${aiNote}\nRequested mode \`${mode}\` is now treated as informational only.`)],
       });
     }
 
