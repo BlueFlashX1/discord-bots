@@ -171,3 +171,8 @@ fix-offline-bots.sh
 restore-command-control-bot.sh
 .grepai/
 moltbot/
+
+# Syncthing
+.stfolder/
+.stignore
+.stversions/
