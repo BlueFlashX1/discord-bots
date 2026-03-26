@@ -318,6 +318,7 @@ class RemindCommand(commands.Cog):
         recurring: Optional[str] = None,
     ):
         """Set a reminder via slash command."""
+        await interaction.response.defer()
         reminder_service = self._get_reminder_service()
         remind_at_dt = self.parse_time_input(time)
 

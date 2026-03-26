@@ -87,15 +87,92 @@ class CodeValidator {
     });
   }
 
+  // Dangerous imports that user code must never use
+  static BLOCKED_IMPORTS = [
+    'os', 'subprocess', 'sys', 'shutil', 'pathlib',
+    'socket', 'http', 'urllib', 'requests', 'ftplib',
+    'smtplib', 'ctypes', 'importlib', 'code', 'codeop',
+    'compile', 'compileall', 'py_compile',
+    'signal', 'multiprocessing', 'threading',
+    '__import__', 'eval', 'exec', 'open',
+  ];
+
+  // Max execution time in milliseconds
+  static EXEC_TIMEOUT = 10000;
+  // Max output size in bytes
+  static MAX_OUTPUT = 50000;
+
+  /**
+   * Check user code for dangerous patterns before execution.
+   * Returns { safe: boolean, reason?: string }
+   */
+  validateCodeSafety(code) {
+    const lines = code.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      // Skip comments
+      if (trimmed.startsWith('#')) continue;
+
+      // Block dangerous imports
+      for (const mod of CodeValidator.BLOCKED_IMPORTS) {
+        const importPattern = new RegExp(
+          `\\b(?:import\\s+${mod}\\b|from\\s+${mod}\\b|__import__\\s*\\(\\s*['"]${mod}['"]\\))`,
+        );
+        if (importPattern.test(trimmed)) {
+          return { safe: false, reason: `Blocked import: ${mod}` };
+        }
+      }
+
+      // Block exec/eval/open builtins used as calls
+      if (/\b(?:exec|eval|compile|__import__)\s*\(/.test(trimmed)) {
+        return { safe: false, reason: 'Blocked builtin: exec/eval/compile/__import__' };
+      }
+
+      // Block file operations
+      if (/\bopen\s*\(/.test(trimmed)) {
+        return { safe: false, reason: 'Blocked builtin: open()' };
+      }
+    }
+
+    return { safe: true };
+  }
+
+  /**
+   * Escape a value for safe interpolation into Python source code.
+   * Wraps strings in repr()-safe quoting; numbers pass through.
+   */
+  escapePyValue(val) {
+    if (typeof val === 'number') return String(val);
+    if (typeof val === 'boolean') return val ? 'True' : 'False';
+    // Escape backslashes and quotes, wrap in triple-quotes for safety
+    const escaped = String(val).replace(/\\/g, '\\\\').replace(/"""/g, '\\"\\"\\"');
+    return `"""${escaped}"""`;
+  }
+
   async runTests(code, testCases) {
-    // Basic test runner - runs code and checks output
-    // For production, you'd want a sandboxed environment
+    // Validate code safety before execution
+    const safety = this.validateCodeSafety(code);
+    if (!safety.safe) {
+      return { passed: false, error: `Security: ${safety.reason}. Only pure algorithmic code is allowed.` };
+    }
+
     return new Promise((resolve) => {
       const tempFile = path.join(this.tempDir, `test_${Date.now()}.py`);
 
       try {
         // Wrap code in test harness
         const testCode = `
+import signal, resource
+
+# Kill after 5 seconds of CPU time
+signal.alarm(5)
+
+# Limit memory to 128MB
+try:
+    resource.setrlimit(resource.RLIMIT_AS, (128 * 1024 * 1024, 128 * 1024 * 1024))
+except (ValueError, resource.error):
+    pass  # Not all platforms support this
+
 ${code}
 
 # Test cases
@@ -122,17 +199,30 @@ ${testCases
         return;
       }
 
-      const python = spawn('python3', [tempFile]);
+      const python = spawn('python3', [tempFile], {
+        timeout: CodeValidator.EXEC_TIMEOUT,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' },
+      });
 
       let stdout = '';
       let stderr = '';
+      let killed = false;
 
       python.stdout.on('data', (data) => {
         stdout += data.toString();
+        if (stdout.length > CodeValidator.MAX_OUTPUT) {
+          python.kill('SIGKILL');
+          killed = true;
+        }
       });
 
       python.stderr.on('data', (data) => {
         stderr += data.toString();
+        if (stderr.length > CodeValidator.MAX_OUTPUT) {
+          python.kill('SIGKILL');
+          killed = true;
+        }
       });
 
       python.on('close', (code) => {
@@ -143,7 +233,9 @@ ${testCases
           // Ignore cleanup errors
         }
 
-        if (code === 0 && stdout.includes('All tests passed')) {
+        if (killed) {
+          resolve({ passed: false, error: 'Output too large or execution timed out' });
+        } else if (code === 0 && stdout.includes('All tests passed')) {
           resolve({ passed: true, output: stdout });
         } else {
           resolve({

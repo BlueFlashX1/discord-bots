@@ -16,11 +16,27 @@ class EnableCommand(commands.Cog):
         self.github = GitHubService()
         self.data = DataManager()
 
+    async def repo_autocomplete(
+        self,
+        interaction: discord.Interaction,
+        current: str,
+    ) -> list[app_commands.Choice[str]]:
+        """Autocomplete tracked repos owned by the user."""
+        repos = self.data.get_tracked_repos()
+        choices = [
+            app_commands.Choice(name=repo_key, value=repo_key)
+            for repo_key, config in repos.items()
+            if config.get("user_id") == interaction.user.id
+            and current.lower() in repo_key.lower()
+        ]
+        return choices[:25]
+
     @app_commands.command(name="enable", description="Enable or disable tracking for a repository")
     @app_commands.describe(
         repository="Repository to enable/disable (owner/repo format)",
         enabled="Enable or disable tracking",
     )
+    @app_commands.autocomplete(repository=repo_autocomplete)
     async def enable(
         self,
         interaction: discord.Interaction,

@@ -9,7 +9,7 @@
     "dev": "nodemon index.js",
     "migrate:preview": "node scripts/migrate-from-python.js --dry-run",
     "migrate:run": "node scripts/migrate-from-python.js --yes",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest"
   },
   "keywords": [
     "discord",
@@ -28,6 +28,9 @@
     "mongodb": "^7.0.0",
     "mongoose": "^9.1.4",
     "openai": "^4.104.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
   },
   "overrides": {
     "undici": "^6.23.0"

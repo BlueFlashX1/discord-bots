@@ -65,82 +65,88 @@ class RedditMonitor {
   }
 
   async checkSubreddits() {
+    if (this._isRunning) return;
     if (configManager.getPaused()) {
       console.log('Reddit monitor is paused, skipping check');
       return;
     }
+    this._isRunning = true;
 
-    const currentConfig = configManager.getConfig();
-    const subredditNames = configManager.getSubreddits();
-    const now = new Date();
+    try {
+      const currentConfig = configManager.getConfig();
+      const subredditNames = configManager.getSubreddits();
+      const now = new Date();
 
-    console.log(`\n[${now.toISOString()}] Checking ${subredditNames.length} subreddit(s)...`);
+      console.log(`\n[${now.toISOString()}] Checking ${subredditNames.length} subreddit(s)...`);
 
-    for (const subredditName of subredditNames) {
-      const subConfig = configManager.getSubredditConfig(subredditName);
+      for (const subredditName of subredditNames) {
+        const subConfig = configManager.getSubredditConfig(subredditName);
 
-      // Skip disabled subreddits
-      if (!subConfig.enabled) {
-        console.log(`Skipping r/${subredditName} (disabled)`);
-        continue;
-      }
+        // Skip disabled subreddits
+        if (!subConfig.enabled) {
+          console.log(`Skipping r/${subredditName} (disabled)`);
+          continue;
+        }
 
-      try {
-        console.log(`Checking r/${subredditName}...`);
-        const posts = await this.redditClient.getNewPosts(subredditName, currentConfig.post_limit || 25);
+        try {
+          console.log(`Checking r/${subredditName}...`);
+          const posts = await this.redditClient.getNewPosts(subredditName, currentConfig.post_limit || 25);
 
-        let newPosts = 0;
-        for (const post of posts) {
-          // Skip already posted
-          if (this.postedIds.has(post.id)) {
-            continue;
-          }
+          let newPosts = 0;
+          for (const post of posts) {
+            // Skip already posted
+            if (this.postedIds.has(post.id)) {
+              continue;
+            }
 
-          // Check min score for this subreddit
-          if (post.score < (subConfig.min_score || 0)) {
-            continue;
-          }
+            // Check min score for this subreddit
+            if (post.score < (subConfig.min_score || 0)) {
+              continue;
+            }
 
-          // Check include keywords (must match at least one)
-          const titleMatch = this.matchesKeywords(post.title, subConfig.keywords);
-          const selftextMatch = this.matchesKeywords(post.selftext || '', subConfig.keywords);
-          const matchesInclude = titleMatch || selftextMatch;
+            // Check include keywords (must match at least one)
+            const titleMatch = this.matchesKeywords(post.title, subConfig.keywords);
+            const selftextMatch = this.matchesKeywords(post.selftext || '', subConfig.keywords);
+            const matchesInclude = titleMatch || selftextMatch;
 
-          // Check exclude keywords (must not match any)
-          const titleExcluded = this.matchesExcludeKeywords(post.title, subConfig.excludeKeywords);
-          const selftextExcluded = this.matchesExcludeKeywords(post.selftext || '', subConfig.excludeKeywords);
-          const matchesExclude = titleExcluded || selftextExcluded;
+            // Check exclude keywords (must not match any)
+            const titleExcluded = this.matchesExcludeKeywords(post.title, subConfig.excludeKeywords);
+            const selftextExcluded = this.matchesExcludeKeywords(post.selftext || '', subConfig.excludeKeywords);
+            const matchesExclude = titleExcluded || selftextExcluded;
 
-          // Post matches if: (includes match OR no include filter) AND (not excluded)
-          if (matchesInclude && !matchesExclude) {
-            // Post to the subreddit's configured channel
-            await this.discordPoster.postSubmission(post, subConfig.channel_id);
-            this.postedIds.add(post.id);
-            newPosts++;
-            console.log(`Posted: ${post.title.substring(0, 50)}... (r/${subredditName} -> #${subConfig.channel_id})`);
-            
-            // Rate limit: Delay between posts to prevent Discord API spam
-            // Discord allows 5 messages per 5 seconds per channel
-            await new Promise((resolve) => setTimeout(resolve, 1200)); // 1.2s delay = ~5 per 6s (safe)
-            
-            // Trim memory periodically
-            if (this.postedIds.size > 10000) {
-              this.trimPostedIds();
+            // Post matches if: (includes match OR no include filter) AND (not excluded)
+            if (matchesInclude && !matchesExclude) {
+              // Post to the subreddit's configured channel
+              await this.discordPoster.postSubmission(post, subConfig.channel_id);
+              this.postedIds.add(post.id);
+              newPosts++;
+              console.log(`Posted: ${post.title.substring(0, 50)}... (r/${subredditName} -> #${subConfig.channel_id})`);
+
+              // Rate limit: Delay between posts to prevent Discord API spam
+              // Discord allows 5 messages per 5 seconds per channel
+              await new Promise((resolve) => setTimeout(resolve, 1200)); // 1.2s delay = ~5 per 6s (safe)
+
+              // Trim memory periodically
+              if (this.postedIds.size > 10000) {
+                this.trimPostedIds();
+              }
             }
           }
-        }
 
-        if (newPosts > 0) {
-          console.log(`Found ${newPosts} new matching post(s) in r/${subredditName}`);
+          if (newPosts > 0) {
+            console.log(`Found ${newPosts} new matching post(s) in r/${subredditName}`);
+          }
+        } catch (error) {
+          console.error(`Error checking r/${subredditName}:`, error.message);
         }
-      } catch (error) {
-        console.error(`Error checking r/${subredditName}:`, error.message);
       }
-    }
 
-    // Trim memory before saving
-    this.trimPostedIds();
-    this.savePostedIds();
+      // Trim memory before saving
+      this.trimPostedIds();
+      this.savePostedIds();
+    } finally {
+      this._isRunning = false;
+    }
   }
 
   async start() {

@@ -52,16 +52,30 @@ jobs:
             node scripts/merge-ecosystem.js || { log "WARN: merge-ecosystem.js failed, continuing with current config"; }
 
             log "Step: npm install"
-            # Update dependencies for each bot
+            # Update dependencies for each Node.js bot
             # hangman-bot removed - archived on 2026-01-23
             # spelling-bee-bot removed - no longer needed
             # subscription-bot not deployed remotely (local only)
+            # moltbot removed - replaced by Claude Code (2026-03-26)
             for bot in coding-practice-bot command-control-bot grammar-bot "todoist bot" reddit-filter-bot shadow-away-bot youtube-monitor-bot; do
               if [ -d "$bot" ] && [ -f "$bot/package.json" ]; then
                 echo "Updating dependencies for $bot..."
                 cd "$bot"
                 npm install --production || {
                   log "FAILED: npm install failed for $bot"
+                  exit 1
+                }
+                cd /root/discord-bots
+              fi
+            done
+
+            log "Step: pip install for Python bots"
+            for bot in github-bot reminder-bot starboard-bot exercism-bot; do
+              if [ -d "$bot" ] && [ -f "$bot/requirements.txt" ]; then
+                echo "Installing Python dependencies for $bot..."
+                cd "$bot"
+                pip3 install -r requirements.txt --quiet || {
+                  log "FAILED: pip install failed for $bot"
                   exit 1
                 }
                 cd /root/discord-bots

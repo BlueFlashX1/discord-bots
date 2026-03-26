@@ -2,36 +2,19 @@
 // Copy to ecosystem.config.js and adjust DEPLOY_ROOT if needed.
 // Set DEPLOY_ROOT env var or change default below (e.g. /root/discord-bots).
 //
-// Apps in this file: moltbot, coding-practice-bot, subscription-tracker, grammar-bot,
+// Apps in this file: coding-practice-bot, subscription-tracker, grammar-bot,
 // shadow-away-bot,
 // todoist-bot, reddit-filter-bot, youtube-monitor-bot, github-bot, reminder-bot,
 // starboard-bot, exercism-bot, monitorss-monolith, monitorss-bot-presence,
 // monitorss-discord-rest-listener, monitorss-feed-requests, monitorss-user-feeds,
 // monitorss-schedule-emitter.
 // Local-only (do not add to VPS): command-control-bot, subscription-bot.
+// Retired: moltbot (replaced by Claude Code, 2026-03-26).
 
 const ROOT = process.env.DEPLOY_ROOT || '/root/discord-bots';
 
 module.exports = {
   apps: [
-    {
-      name: 'moltbot',
-      script: 'src/index.js',
-      cwd: `${ROOT}/moltbot`,
-      instances: 1,
-      exec_mode: 'fork',
-      autorestart: true,
-      watch: false,
-      max_memory_restart: '512M',
-      env_file: `${ROOT}/moltbot/.env`,
-      env: {
-        NODE_ENV: 'production',
-      },
-      error_file: `${ROOT}/logs/moltbot-error.log`,
-      out_file: `${ROOT}/logs/moltbot-out.log`,
-      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-      merge_logs: true,
-    },
     {
       name: 'coding-practice-bot',
       script: 'index.js',

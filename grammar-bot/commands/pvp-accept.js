@@ -10,7 +10,11 @@ module.exports = {
     .setName('pvp-accept')
     .setDescription('Accept a grammar battle challenge')
     .addStringOption((option) =>
-      option.setName('battle_id').setDescription('Battle ID from the challenge').setRequired(true)
+      option
+        .setName('battle_id')
+        .setDescription('Battle ID from the challenge')
+        .setRequired(true)
+        .setAutocomplete(true)
     )
     .addStringOption((option) =>
       option
@@ -20,6 +24,34 @@ module.exports = {
         .setMinLength(20)
         .setMaxLength(500)
     ),
+
+  async autocomplete(interaction) {
+    try {
+      const focused = interaction.options.getFocused().toLowerCase();
+      const userId = interaction.user.id;
+
+      const pending = [...activeBattles.entries()]
+        .filter(([, battle]) => battle.opponentId === userId)
+        .filter(
+          ([id, battle]) =>
+            id.toLowerCase().includes(focused) ||
+            battle.challenger.user.username.toLowerCase().includes(focused)
+        )
+        .slice(0, 25);
+
+      await interaction.respond(
+        pending.map(([id, battle]) => ({
+          name: `vs ${battle.challenger.user.username} (${new Date(battle.createdAt).toLocaleTimeString()})`,
+          value: id,
+        }))
+      );
+    } catch (error) {
+      console.error('Error in pvp-accept autocomplete:', error);
+      await interaction.respond([]).catch(() => {
+        // Ignore if already responded
+      });
+    }
+  },
 
   async execute(interaction) {
     await interaction.deferReply();

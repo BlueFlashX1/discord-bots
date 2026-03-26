@@ -14,8 +14,24 @@ class UntrackCommand(commands.Cog):
         self.bot = bot
         self.data = DataManager()
 
+    async def repo_autocomplete(
+        self,
+        interaction: discord.Interaction,
+        current: str,
+    ) -> list[app_commands.Choice[str]]:
+        """Autocomplete tracked repos owned by the user."""
+        repos = self.data.get_tracked_repos()
+        choices = [
+            app_commands.Choice(name=repo_key, value=repo_key)
+            for repo_key, config in repos.items()
+            if config.get("user_id") == interaction.user.id
+            and current.lower() in repo_key.lower()
+        ]
+        return choices[:25]
+
     @app_commands.command(name="untrack", description="Stop tracking a GitHub repository")
     @app_commands.describe(repository="Repository in format owner/repo")
+    @app_commands.autocomplete(repository=repo_autocomplete)
     async def untrack(self, interaction: discord.Interaction, repository: str):
         """Stop tracking a repository."""
         await interaction.response.defer()
